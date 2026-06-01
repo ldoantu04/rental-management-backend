@@ -72,6 +72,50 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest req) throws Exception {
-        return null;
+        String email = req.getEmail();
+        String otp = req.getOtp();
+
+        // Kiem tra user ton tai
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new BadCredentialsException("Email khong ton tai trong he thong");
+        }
+
+        // Kiem tra trang thai tai khoan
+        if (user.getTrangThai() == UserStatus.KHOA) {
+            throw new Exception("Tai khoan da bi khoa");
+        }
+
+        // Xac thuc OTP
+        OtpToken otpToken = otpTokenRepository.findByEmailAndMaXacThuc(email, otp);
+        if (otpToken == null) {
+            throw new Exception("Ma OTP khong hop le");
+        }
+        if (otpToken.getDaSuDung()) {
+            throw new Exception("Ma OTP da duoc su dung");
+        }
+        if (otpToken.getThoiHan().isBefore(LocalDateTime.now())) {
+            throw new Exception("Ma OTP da het han");
+        }
+
+        otpToken.setDaSuDung(true);
+        otpTokenRepository.save(otpToken);
+
+        // Tao authentication
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority(user.getVaiTro().toString()));
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(email, null, authorities);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // Tao JWT token
+        String token = jwtProvider.generateToken(authentication);
+
+        AuthResponse authResponse = new AuthResponse();
+        authResponse.setJwt(token);
+        authResponse.setMessage("Dang nhap thanh cong");
+        authResponse.setRole(user.getVaiTro());
+
+        return authResponse;
     }
 }
