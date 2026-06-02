@@ -72,7 +72,8 @@ public class MotelServiceImpl implements MotelService {
 
     @Override
     public Motel findById(Long id) throws Exception {
-        return null;
+        return motelRepository.findById(id)
+                .orElseThrow(() -> new Exception("Khong tim thay nha tro voi id " + id));
     }
 
     @Override
