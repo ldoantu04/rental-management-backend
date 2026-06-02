@@ -40,7 +40,29 @@ public class MotelServiceImpl implements MotelService {
 
     @Override
     public Motel updateMotel(Long id, MotelRequest req) throws Exception {
-        return null;
+        Motel motel = findById(id);
+
+        if (req.getTenTro() != null) {
+            motel.setTenTro(req.getTenTro());
+        }
+        if (req.getDiaChi() != null) {
+            motel.setDiaChi(req.getDiaChi());
+        }
+        if (req.getSoTang() != null) {
+            motel.setSoTang(req.getSoTang());
+        }
+        if (req.getTongPhong() != null) {
+            motel.setTongPhong(req.getTongPhong());
+        }
+        if (req.getTrangThai() != null) {
+            motel.setTrangThai(req.getTrangThai());
+        }
+        if (req.getGhiChu() != null) {
+            motel.setGhiChu(req.getGhiChu());
+        }
+        motel.setNgaySua(LocalDateTime.now());
+
+        return motelRepository.save(motel);
     }
 
     @Override

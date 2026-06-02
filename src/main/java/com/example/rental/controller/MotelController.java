@@ -28,4 +28,12 @@ public class MotelController {
         Motel motel = motelService.createMotel(req, user);
         return ResponseEntity.ok(motel);
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Motel> updateMotel(
+            @PathVariable Long id,
+            @RequestBody MotelRequest req) throws Exception {
+        Motel motel = motelService.updateMotel(id, req);
+        return ResponseEntity.ok(motel);
+    }
 }
