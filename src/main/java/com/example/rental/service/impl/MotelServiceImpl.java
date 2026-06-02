@@ -1,9 +1,11 @@
 package com.example.rental.service.impl;
 
+import com.example.rental.domain.RoomStatus;
 import com.example.rental.dto.MotelRequest;
 import com.example.rental.model.Motel;
 import com.example.rental.model.User;
 import com.example.rental.repository.MotelRepository;
+import com.example.rental.repository.RoomRepository;
 import com.example.rental.service.MotelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import java.util.List;
 public class MotelServiceImpl implements MotelService {
 
     private final MotelRepository motelRepository;
+    private final RoomRepository romeRepository;
 
     @Override
     public Motel createMotel(MotelRequest req, User nguoiTao) throws Exception {
@@ -67,7 +70,13 @@ public class MotelServiceImpl implements MotelService {
 
     @Override
     public void deleteMotel(Long id) throws Exception {
+        Motel motel = findById(id);
+        long roomCount = romeRepository.findByNhaTroId(id).stream().filter(room -> room.getTrangThai() == RoomStatus.DANG_THUE).count();
+        if (roomCount > 0) {
+            throw new Exception("Khong the xoa nha tro khi con phong dang cho thue");
+        }
 
+        motelRepository.delete(motel);
     }
 
     @Override
