@@ -87,11 +87,11 @@ public class MotelServiceImpl implements MotelService {
 
     @Override
     public List<Motel> findAll() {
-        return List.of();
+        return motelRepository.findAllByOrderByNguoiTaoDesc();
     }
 
     @Override
     public List<Motel> search(String keyword) {
-        return List.of();
+        return motelRepository.search(keyword);
     }
 }
