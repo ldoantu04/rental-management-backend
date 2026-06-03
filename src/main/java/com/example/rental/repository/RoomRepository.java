@@ -8,4 +8,5 @@ import java.util.List;
 public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Room> findByNhaTroId(Long nhaTroId);
     Room findByMaPhongAndNhaTroId(String maPhong, Long nhaTroId);
+    List<Room> findAllByOrderByNgayTaoDesc();
 }
