@@ -36,4 +36,30 @@ public class MotelController {
         Motel motel = motelService.updateMotel(id, req);
         return ResponseEntity.ok(motel);
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse> deleteMotel(@PathVariable Long id) throws Exception {
+        motelService.deleteMotel(id);
+        ApiResponse res = new ApiResponse();
+        res.setMessage("Xoa nha tro thanh cong");
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Motel> getMotelById(@PathVariable Long id) throws Exception {
+        Motel motel = motelService.findById(id);
+        return ResponseEntity.ok(motel);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Motel>> getAllMotels() {
+        List<Motel> motels = motelService.findAll();
+        return ResponseEntity.ok(motels);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<Motel>> searchMotels(@RequestParam String keyword) {
+        List<Motel> motels = motelService.search(keyword);
+        return ResponseEntity.ok(motels);
+    }
 }
