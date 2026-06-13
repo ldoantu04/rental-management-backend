@@ -57,4 +57,10 @@ public class TransactionServiceImpl implements TransactionService {
                 .filter(t -> denNgay == null || (t.getNgayTao() != null && !t.getNgayTao().isAfter(denNgay)))
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void deleteTransaction(Long id) throws Exception {
+        Transaction transaction = findById(id);
+        transactionRepository.delete(transaction);
+    }
 }

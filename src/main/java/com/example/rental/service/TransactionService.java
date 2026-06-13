@@ -14,4 +14,5 @@ public interface TransactionService {
     List<Transaction> findByInvoiceId(Long hoaDonId);
     List<Transaction> search(String maGiaoDich, Long hoaDonId, PaymentStatus trangThai,
                              PaymentMethod hinhThucTT, LocalDateTime tuNgay, LocalDateTime denNgay);
+    void deleteTransaction(Long id) throws Exception;
 }

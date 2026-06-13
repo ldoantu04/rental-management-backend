@@ -2,6 +2,7 @@ package com.example.rental.controller;
 
 import com.example.rental.domain.PaymentMethod;
 import com.example.rental.domain.PaymentStatus;
+import com.example.rental.dto.ApiResponse;
 import com.example.rental.model.Transaction;
 import com.example.rental.service.TransactionService;
 import lombok.RequiredArgsConstructor;
@@ -54,5 +55,13 @@ public class TransactionController {
         List<Transaction> transactions = transactionService.search(
                 maGiaoDich, hoaDonId, trangThai, hinhThucTT, tuNgay, denNgay);
         return ResponseEntity.ok(transactions);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse> deleteTransaction(@PathVariable Long id) throws Exception {
+        transactionService.deleteTransaction(id);
+        ApiResponse res = new ApiResponse();
+        res.setMessage("Xoa giao dich thanh cong");
+        return ResponseEntity.ok(res);
     }
 }
