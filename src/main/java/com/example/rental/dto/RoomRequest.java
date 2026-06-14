@@ -12,6 +12,7 @@ public class RoomRequest {
     private BigDecimal dienTich;
     private BigDecimal giaThue;
     private Integer soNguoi;
+    private Integer tang;
     private RoomStatus trangThai;
     private String ghiChu;
 }
