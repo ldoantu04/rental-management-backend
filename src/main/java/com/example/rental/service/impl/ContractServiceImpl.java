@@ -1,88 +1,255 @@
 package com.example.rental.service.impl;
 
+import com.example.rental.domain.ContractStatus;
+import com.example.rental.domain.RoomStatus;
+import com.example.rental.domain.TenantStatus;
 import com.example.rental.dto.ContractRequest;
+import com.example.rental.dto.ContractServiceItemRequest;
 import com.example.rental.model.Contract;
+import com.example.rental.model.ContractServiceItem;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
 import com.example.rental.repository.ContractRepository;
+import com.example.rental.repository.ContractServiceItemRepository;
+import com.example.rental.repository.RoomRepository;
+import com.example.rental.repository.TenantRepository;
 import com.example.rental.service.ContractService;
-import com.example.rental.service.RoomService;
-import com.example.rental.service.TenantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class
-ContractServiceImpl implements ContractService {
+public class ContractServiceImpl implements ContractService {
 
     private final ContractRepository contractRepository;
-    private final TenantService tenantService;
-    private final RoomService roomService;
+    private final TenantRepository tenantRepository;
+    private final RoomRepository roomRepository;
+    private final ContractServiceItemRepository contractServiceItemRepository;
 
     @Override
+    @Transactional
     public Contract createContract(ContractRequest req) throws Exception {
-        Tenant tenant = tenantService.findById(req.getMaKhachThue());
-        Room room = roomService.findById(req.getMaPhongTro());
+        Tenant tenant = tenantRepository.findById(req.getMaKhachThue())
+                .orElseThrow(() -> new Exception("Khong tim thay khach thue voi id " + req.getMaKhachThue()));
+
+        if (tenant.getTrangThai() != TenantStatus.CHUA_NHAN_PHONG) {
+            throw new Exception("Khach thue khong o trang thai cho nhan phong, khong the tao hop dong");
+        }
+
+        Room room = roomRepository.findById(req.getMaPhongTro())
+                .orElseThrow(() -> new Exception("Khong tim thay phong tro voi id " + req.getMaPhongTro()));
+
+        if (room.getTrangThai() != RoomStatus.TRONG) {
+            throw new Exception("Phong tro dang co nguoi thue hoac khong o trang thai trong, khong the tao hop dong");
+        }
+
+        List<Contract> activeContracts = contractRepository.findByPhongTroIdAndTrangThai(room.getId(), ContractStatus.DANG_HIEU_LUC);
+        if (activeContracts != null && !activeContracts.isEmpty()) {
+            throw new Exception("Phong tro dang co hop dong hieu luc, khong the tao hop dong moi");
+        }
+
+        long count = contractRepository.count();
+        String maHopDong = "HD" + String.format("%03d", count + 1);
 
         Contract contract = new Contract();
-        String nextCode = "HD" + String.format("%03d", contractRepository.count() + 1);
-        contract.setMaHopDong(nextCode);
+        contract.setMaHopDong(maHopDong);
         contract.setKhachThue(tenant);
         contract.setPhongTro(room);
         contract.setNgayBatDau(req.getNgayBatDau());
         contract.setNgayKetThuc(req.getNgayKetThuc());
         contract.setTienCoc(req.getTienCoc());
         contract.setGiaThue(req.getGiaThue());
-        contract.setChuKyThanhToan(req.getChuKyThanhToan());
+        contract.setChuKyThanhToan(req.getChuKyThanhToan() != null ? req.getChuKyThanhToan() : 5);
+        contract.setNgayThanhToan(req.getNgayThanhToan());
         contract.setDieuKhoan(req.getDieuKhoan());
-        contract.setTrangThai(req.getTrangThai());
+        contract.setDichVu(req.getDichVu());
+        contract.setFileHopDong(req.getFileHopDong());
+        contract.setTrangThai(ContractStatus.DANG_HIEU_LUC);
         contract.setNgayTao(LocalDateTime.now());
         contract.setNgaySua(LocalDateTime.now());
 
-        return contractRepository.save(contract);
+        Contract saved = contractRepository.save(contract);
+        attachDichVu(saved, req.getDanhSachDichVu());
+        syncTenantAndRoom(saved);
+        return saved;
     }
 
     @Override
+    @Transactional
     public Contract updateContract(Long id, ContractRequest req) throws Exception {
         Contract contract = findById(id);
 
         if (req.getMaKhachThue() != null) {
-            contract.setKhachThue(tenantService.findById(req.getMaKhachThue()));
+            Tenant tenant = tenantRepository.findById(req.getMaKhachThue())
+                    .orElseThrow(() -> new Exception("Khong tim thay khach thue voi id " + req.getMaKhachThue()));
+            contract.setKhachThue(tenant);
         }
         if (req.getMaPhongTro() != null) {
-            contract.setPhongTro(roomService.findById(req.getMaPhongTro()));
+            Room newRoom = roomRepository.findById(req.getMaPhongTro())
+                    .orElseThrow(() -> new Exception("Khong tim thay phong tro voi id " + req.getMaPhongTro()));
+            if (contract.getPhongTro() != null && !contract.getPhongTro().getId().equals(newRoom.getId())) {
+                Room oldRoom = contract.getPhongTro();
+                if (oldRoom.getTrangThai() == RoomStatus.DANG_THUE) {
+                    oldRoom.setTrangThai(RoomStatus.TRONG);
+                    roomRepository.save(oldRoom);
+                }
+                if (newRoom.getTrangThai() != RoomStatus.TRONG) {
+                    throw new Exception("Phong tro moi khong o trang thai trong, khong the chuyen hop dong");
+                }
+                List<Contract> otherActive = contractRepository.findByPhongTroIdAndTrangThai(newRoom.getId(), ContractStatus.DANG_HIEU_LUC);
+                boolean hasOtherActive = otherActive != null && otherActive.stream().anyMatch(c -> !c.getId().equals(contract.getId()));
+                if (hasOtherActive) {
+                    throw new Exception("Phong tro moi dang co hop dong hieu luc khac, khong the chuyen hop dong");
+                }
+            }
+            contract.setPhongTro(newRoom);
         }
-        if (req.getNgayBatDau() != null) contract.setNgayBatDau(req.getNgayBatDau());
-        if (req.getNgayKetThuc() != null) contract.setNgayKetThuc(req.getNgayKetThuc());
-        if (req.getTienCoc() != null) contract.setTienCoc(req.getTienCoc());
-        if (req.getGiaThue() != null) contract.setGiaThue(req.getGiaThue());
-        if (req.getChuKyThanhToan() != null) contract.setChuKyThanhToan(req.getChuKyThanhToan());
-        if (req.getDieuKhoan() != null) contract.setDieuKhoan(req.getDieuKhoan());
-        if (req.getTrangThai() != null) contract.setTrangThai(req.getTrangThai());
-        if (req.getLyDoHuy() != null) contract.setLyDoHuy(req.getLyDoHuy());
+        if (req.getNgayBatDau() != null) {
+            contract.setNgayBatDau(req.getNgayBatDau());
+        }
+        if (req.getNgayKetThuc() != null) {
+            contract.setNgayKetThuc(req.getNgayKetThuc());
+        }
+        if (req.getTienCoc() != null) {
+            contract.setTienCoc(req.getTienCoc());
+        }
+        if (req.getGiaThue() != null) {
+            contract.setGiaThue(req.getGiaThue());
+        }
+        if (req.getChuKyThanhToan() != null) {
+            contract.setChuKyThanhToan(req.getChuKyThanhToan());
+        }
+        if (req.getNgayThanhToan() != null) {
+            contract.setNgayThanhToan(req.getNgayThanhToan());
+        }
+        if (req.getDieuKhoan() != null) {
+            contract.setDieuKhoan(req.getDieuKhoan());
+        }
+        if (req.getDichVu() != null) {
+            contract.setDichVu(req.getDichVu());
+        }
+        if (req.getFileHopDong() != null) {
+            contract.setFileHopDong(req.getFileHopDong());
+        }
+
+        ContractStatus targetStatus = null;
+        if (req.getTrangThai() != null) {
+            contract.setTrangThai(req.getTrangThai());
+            targetStatus = req.getTrangThai();
+        }
+        if (req.getLyDoHuy() != null) {
+            contract.setLyDoHuy(req.getLyDoHuy());
+            if (req.getTrangThai() == ContractStatus.DA_HUY) {
+                contract.setNgayHuy(LocalDate.now());
+            }
+        }
         contract.setNgaySua(LocalDateTime.now());
 
-        return contractRepository.save(contract);
+        Contract saved = contractRepository.save(contract);
+        if (req.getDanhSachDichVu() != null) {
+            contractServiceItemRepository.deleteByHopDongId(id);
+            attachDichVu(saved, req.getDanhSachDichVu());
+        }
+        if (targetStatus != null || req.getNgayKetThuc() != null || req.getMaKhachThue() != null || req.getMaPhongTro() != null) {
+            syncTenantAndRoom(saved);
+        }
+        return saved;
     }
 
     @Override
-    public void deleteContract(Long id) throws Exception {
+    @Transactional
+    public void cancelContract(Long id, String lyDoHuy) throws Exception {
         Contract contract = findById(id);
-        contractRepository.delete(contract);
+        contract.setTrangThai(ContractStatus.DA_HUY);
+        if (lyDoHuy != null && !lyDoHuy.trim().isEmpty()) {
+            contract.setLyDoHuy(lyDoHuy);
+        }
+        contract.setNgayHuy(LocalDate.now());
+        contract.setNgaySua(LocalDateTime.now());
+        Contract saved = contractRepository.save(contract);
+        syncTenantAndRoom(saved);
+    }
+
+    private void attachDichVu(Contract contract, List<ContractServiceItemRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return;
+        }
+        for (ContractServiceItemRequest req : requests) {
+            if (req.getTenDichVu() == null || req.getTenDichVu().trim().isEmpty()) {
+                continue;
+            }
+            ContractServiceItem item = new ContractServiceItem();
+            item.setHopDong(contract);
+            item.setTenDichVu(req.getTenDichVu());
+            item.setKieuTinh(req.getKieuTinh());
+            item.setDonGia(req.getDonGia() != null ? req.getDonGia() : java.math.BigDecimal.ZERO);
+            item.setLaDichVuBoSung(Boolean.TRUE.equals(req.getLaDichVuBoSung()));
+            contractServiceItemRepository.save(item);
+            contract.getDanhSachDichVu().add(item);
+        }
+    }
+
+    private void syncTenantAndRoom(Contract contract) {
+        Room room = contract.getPhongTro();
+        Tenant tenant = contract.getKhachThue();
+
+        if (room == null) {
+            return;
+        }
+
+        switch (contract.getTrangThai()) {
+            case DANG_HIEU_LUC -> {
+                room.setTrangThai(RoomStatus.DANG_THUE);
+                if (tenant != null) {
+                    tenant.setPhongTro(room);
+                    tenant.setNgayBatDauThue(contract.getNgayBatDau());
+                    tenant.setTienCoc(contract.getTienCoc());
+                    tenant.setTrangThai(TenantStatus.DANG_THUE);
+                    tenant.setNgaySua(LocalDateTime.now());
+                    tenantRepository.save(tenant);
+                }
+            }
+            case DA_HUY, DA_HET_HAN -> {
+                releaseRoom(room);
+                if (tenant != null) {
+                    tenant.setTrangThai(TenantStatus.CHUA_NHAN_PHONG);
+                    tenant.setPhongTro(null);
+                    tenant.setNgayBatDauThue(null);
+                    tenant.setTienCoc(null);
+                    tenant.setNgaySua(LocalDateTime.now());
+                    tenantRepository.save(tenant);
+                }
+            }
+            default -> {
+            }
+        }
+        room.setNgaySua(LocalDateTime.now());
+        roomRepository.save(room);
+    }
+
+    private void releaseRoom(Room room) {
+        List<Contract> active = contractRepository.findByPhongTroIdAndTrangThaiNot(room.getId(), ContractStatus.DA_HUY);
+        boolean stillActive = active.stream()
+                .anyMatch(c -> c.getTrangThai() == ContractStatus.DANG_HIEU_LUC);
+        if (!stillActive) {
+            room.setTrangThai(RoomStatus.TRONG);
+            roomRepository.save(room);
+        }
     }
 
     @Override
     public Contract findById(Long id) throws Exception {
         return contractRepository.findById(id)
-                .orElseThrow(() -> new Exception("Khong tim thay hop dong voi id: " + id));
+                .orElseThrow(() -> new Exception("Khong tim thay hop dong voi id " + id));
     }
 
     @Override
     public List<Contract> findAll() {
-        return contractRepository.findAll();
+        return contractRepository.findAllByOrderByNgayTaoDesc();
     }
 }

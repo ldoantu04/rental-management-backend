@@ -8,7 +8,7 @@ import java.util.List;
 public interface ContractService {
     Contract createContract(ContractRequest req) throws Exception;
     Contract updateContract(Long id, ContractRequest req) throws Exception;
-    void deleteContract(Long id) throws Exception;
+    void cancelContract(Long id, String lyDoHuy) throws Exception;
     Contract findById(Long id) throws Exception;
     List<Contract> findAll();
 }

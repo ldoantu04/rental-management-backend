@@ -109,6 +109,11 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    public List<Room> findByTrangThai(RoomStatus trangThai) {
+        return roomRepository.findByTrangThai(trangThai);
+    }
+
+    @Override
     public List<Room> search(String maPhong, Long nhaTroId, RoomStatus trangThai) {
         List<Room> rooms = roomRepository.findAll();
 

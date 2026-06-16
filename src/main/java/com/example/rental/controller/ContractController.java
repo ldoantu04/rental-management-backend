@@ -4,11 +4,15 @@ import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.ContractRequest;
 import com.example.rental.model.Contract;
 import com.example.rental.service.ContractService;
+import com.example.rental.service.utils.ContractPdfService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/contracts")
@@ -16,6 +20,7 @@ import java.util.List;
 public class ContractController {
 
     private final ContractService contractService;
+    private final ContractPdfService contractPdfService;
 
     @PostMapping
     public ResponseEntity<Contract> createContract(@RequestBody ContractRequest req) throws Exception {
@@ -31,11 +36,14 @@ public class ContractController {
         return ResponseEntity.ok(contract);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse> deleteContract(@PathVariable Long id) throws Exception {
-        contractService.deleteContract(id);
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse> cancelContract(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body) throws Exception {
+        String lyDoHuy = body != null ? body.get("lyDoHuy") : null;
+        contractService.cancelContract(id, lyDoHuy);
         ApiResponse res = new ApiResponse();
-        res.setMessage("Xoa hop dong thanh cong");
+        res.setMessage("Huy hop dong thanh cong");
         return ResponseEntity.ok(res);
     }
 
@@ -49,5 +57,17 @@ public class ContractController {
     public ResponseEntity<List<Contract>> getAllContracts() {
         List<Contract> contracts = contractService.findAll();
         return ResponseEntity.ok(contracts);
+    }
+
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadContractPdf(@PathVariable Long id) throws Exception {
+        Contract contract = contractService.findById(id);
+        byte[] pdf = contractPdfService.generate(contract);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        String safeCode = (contract.getMaHopDong() == null ? "hop-dong" : contract.getMaHopDong()).replaceAll("[^\\w\\-]", "_");
+        headers.setContentDispositionFormData("attachment", safeCode + ".pdf");
+        headers.setCacheControl("must-revalidate, no-store");
+        return new ResponseEntity<>(pdf, headers, 200);
     }
 }

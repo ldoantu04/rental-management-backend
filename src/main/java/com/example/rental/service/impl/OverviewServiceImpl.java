@@ -62,7 +62,7 @@ public class OverviewServiceImpl implements OverviewService {
 
         List<Contract> allContracts = contractRepository.findAll();
         List<Contract> hopDongSapHet = allContracts.stream()
-                .filter(c -> c.getTrangThai() == ContractStatus.DANG_HIEU_LUC || c.getTrangThai() == ContractStatus.SAP_HET_HAN)
+                .filter(c -> c.getTrangThai() == ContractStatus.DANG_HIEU_LUC)
                 .filter(c -> c.getNgayKetThuc() != null)
                 .filter(c -> {
                     long daysUntilExpiry = ChronoUnit.DAYS.between(today, c.getNgayKetThuc());
