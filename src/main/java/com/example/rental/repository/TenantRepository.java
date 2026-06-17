@@ -12,4 +12,6 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     List<Tenant> findAllByOrderByNgayTaoDesc();
 
     List<Tenant> findByTrangThaiOrderByNgayTaoDesc(TenantStatus trangThai);
+
+    List<Tenant> findByPhongTroId(Long phongTroId);
 }

@@ -1,5 +1,6 @@
 package com.example.rental.controller;
 
+import com.example.rental.domain.ContractStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.ContractRequest;
 import com.example.rental.model.Contract;
@@ -57,6 +58,21 @@ public class ContractController {
     public ResponseEntity<List<Contract>> getAllContracts() {
         List<Contract> contracts = contractService.findAll();
         return ResponseEntity.ok(contracts);
+    }
+
+    @GetMapping("/active")
+    public ResponseEntity<List<Contract>> getActiveContracts() {
+        List<Contract> contracts = contractService.findByTrangThai(ContractStatus.DANG_HIEU_LUC);
+        return ResponseEntity.ok(contracts);
+    }
+
+    @GetMapping("/by-room/{roomId}/active")
+    public ResponseEntity<Contract> getActiveContractByRoom(@PathVariable Long roomId) throws Exception {
+        List<Contract> contracts = contractService.findByPhongTroIdAndTrangThai(roomId, ContractStatus.DANG_HIEU_LUC);
+        if (contracts == null || contracts.isEmpty()) {
+            throw new Exception("Phong tro chua co hop dong hieu luc");
+        }
+        return ResponseEntity.ok(contracts.get(0));
     }
 
     @GetMapping("/{id}/pdf")

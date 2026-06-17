@@ -7,7 +7,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -25,7 +24,7 @@ public class JwtTokenValidator extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String jwt = request.getHeader("Authorization");
 
-        if (jwt != null) {
+        if (jwt != null && jwt.startsWith("Bearer ")) {
             jwt = jwt.substring(7);
             try {
                 SecretKey key = Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
@@ -38,9 +37,7 @@ public class JwtTokenValidator extends OncePerRequestFilter {
                 Authentication authentication = new UsernamePasswordAuthenticationToken(email, null, auths);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            } catch (Exception e) {
-                throw new BadCredentialsException("Token JWT khong hop le");
+            } catch (Exception ignored) {
             }
         }
 

@@ -1,5 +1,6 @@
 package com.example.rental.service;
 
+import com.example.rental.domain.ContractStatus;
 import com.example.rental.dto.ContractRequest;
 import com.example.rental.model.Contract;
 
@@ -11,4 +12,6 @@ public interface ContractService {
     void cancelContract(Long id, String lyDoHuy) throws Exception;
     Contract findById(Long id) throws Exception;
     List<Contract> findAll();
+    List<Contract> findByTrangThai(ContractStatus trangThai);
+    List<Contract> findByPhongTroIdAndTrangThai(Long phongTroId, ContractStatus trangThai);
 }

@@ -1,6 +1,7 @@
 package com.example.rental.dto;
 
 import com.example.rental.domain.InvoiceStatus;
+import com.example.rental.domain.WaterCalculationType;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -18,7 +19,9 @@ public class InvoiceRequest {
     private Integer chiSoNuocCu;
     private Integer chiSoNuocMoi;
     private BigDecimal giaNuoc;
+    private WaterCalculationType kieuTinhNuoc;
     private BigDecimal tienPhong;
+    private BigDecimal tongTien;
     private LocalDate hanThanhToan;
     private InvoiceStatus trangThai;
     private String ghiChu;

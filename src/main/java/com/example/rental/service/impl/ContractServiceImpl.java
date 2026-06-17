@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -251,5 +252,17 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public List<Contract> findAll() {
         return contractRepository.findAllByOrderByNgayTaoDesc();
+    }
+
+    @Override
+    public List<Contract> findByTrangThai(ContractStatus trangThai) {
+        return contractRepository.findAll().stream()
+                .filter(c -> c.getTrangThai() == trangThai)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Contract> findByPhongTroIdAndTrangThai(Long phongTroId, ContractStatus trangThai) {
+        return contractRepository.findByPhongTroIdAndTrangThai(phongTroId, trangThai);
     }
 }
