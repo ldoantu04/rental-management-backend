@@ -2,6 +2,8 @@ package com.example.rental.service.impl;
 
 import com.example.rental.config.VNPayConfig;
 import com.example.rental.domain.InvoiceStatus;
+import com.example.rental.domain.PaymentMethod;
+import com.example.rental.domain.PaymentStatus;
 import com.example.rental.domain.WaterCalculationType;
 import com.example.rental.dto.InvoiceRequest;
 import com.example.rental.dto.InvoiceServiceItemRequest;
@@ -10,11 +12,13 @@ import com.example.rental.model.Invoice;
 import com.example.rental.model.InvoiceServiceItem;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
+import com.example.rental.model.Transaction;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.InvoiceServiceItemRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
+import com.example.rental.repository.TransactionRepository;
 import com.example.rental.service.EmailService;
 import com.example.rental.service.InvoiceService;
 import jakarta.mail.MessagingException;
@@ -42,6 +46,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceServiceItemRepository invoiceServiceItemRepository;
     private final TenantRepository tenantRepository;
     private final RoomRepository roomRepository;
+    private final TransactionRepository transactionRepository;
     private final EmailService emailService;
     private final VNPayConfig vnPayConfig;
 
@@ -238,9 +243,33 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) {
             throw new Exception("Hoa don da duoc thanh toan truoc do");
         }
+
+        boolean hasExistingCash = transactionRepository.findByHoaDonId(invoice.getId()).stream()
+                .anyMatch(t -> t.getHinhThucTT() == PaymentMethod.TIEN_MAT);
+        if (!hasExistingCash) {
+            Transaction tx = new Transaction();
+            tx.setMaGiaoDich(generateMaGiaoDich());
+            tx.setHoaDon(invoice);
+            tx.setSoTien(invoice.getTongTien() != null ? invoice.getTongTien() : BigDecimal.ZERO);
+            tx.setHinhThucTT(PaymentMethod.TIEN_MAT);
+            tx.setMaCongTT("CASH");
+            tx.setTrangThai(PaymentStatus.THANH_CONG);
+            LocalDateTime now = LocalDateTime.now();
+            tx.setNgayThanhToan(now);
+            tx.setNgayTao(now);
+            tx.setGhiChu("Thu tien mat hoa don " + invoice.getMaHoaDon());
+            transactionRepository.save(tx);
+        }
+
         invoice.setTrangThai(InvoiceStatus.DA_THANH_TOAN);
         invoice.setNgaySua(LocalDateTime.now());
         return invoiceRepository.save(invoice);
+    }
+
+    private String generateMaGiaoDich() {
+        long count = transactionRepository.count() + 1;
+        return "GD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"))
+                + String.format("%04d", count);
     }
 
     @Override

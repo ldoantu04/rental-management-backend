@@ -7,10 +7,12 @@ import com.example.rental.repository.TransactionRepository;
 import com.example.rental.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -44,23 +46,71 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    public List<Transaction> search(String maGiaoDich, Long hoaDonId, PaymentStatus trangThai,
-                                    PaymentMethod hinhThucTT, LocalDateTime tuNgay, LocalDateTime denNgay) {
-        List<Transaction> transactions = transactionRepository.findAll();
+    public List<Transaction> search(String keyword, String maHoaDon, String tenKhachThue,
+                                    PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                                    LocalDateTime tuNgay, LocalDateTime denNgay) {
+        return applyFilters(transactionRepository.findAll(), keyword, maHoaDon, tenKhachThue,
+                trangThai, hinhThucTT, tuNgay, denNgay);
+    }
 
-        return transactions.stream()
-                .filter(t -> maGiaoDich == null || t.getMaGiaoDich().toLowerCase().contains(maGiaoDich.toLowerCase()))
-                .filter(t -> hoaDonId == null || (t.getHoaDon() != null && t.getHoaDon().getId().equals(hoaDonId)))
+    @Override
+    public List<Transaction> filterForExport(String keyword, String maHoaDon, String tenKhachThue,
+                                             PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                                             LocalDateTime tuNgay, LocalDateTime denNgay) {
+        return applyFilters(transactionRepository.findAll(), keyword, maHoaDon, tenKhachThue,
+                trangThai, hinhThucTT, tuNgay, denNgay);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTransaction(Long id) throws Exception {
+        Transaction transaction = findById(id);
+        transactionRepository.delete(transaction);
+    }
+
+    private List<Transaction> applyFilters(List<Transaction> source, String keyword, String maHoaDon, String tenKhachThue,
+                                            PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                                            LocalDateTime tuNgay, LocalDateTime denNgay) {
+        String normalizedKeyword = normalize(keyword);
+        String normalizedMaHoaDon = normalize(maHoaDon);
+        String normalizedTenKhach = normalize(tenKhachThue);
+
+        return source.stream()
+                .filter(t -> normalizedKeyword == null || matchesKeyword(t, normalizedKeyword))
+                .filter(t -> normalizedMaHoaDon == null || matchesMaHoaDon(t, normalizedMaHoaDon))
+                .filter(t -> normalizedTenKhach == null || matchesTenKhachThue(t, normalizedTenKhach))
                 .filter(t -> trangThai == null || t.getTrangThai() == trangThai)
                 .filter(t -> hinhThucTT == null || t.getHinhThucTT() == hinhThucTT)
                 .filter(t -> tuNgay == null || (t.getNgayTao() != null && !t.getNgayTao().isBefore(tuNgay)))
                 .filter(t -> denNgay == null || (t.getNgayTao() != null && !t.getNgayTao().isAfter(denNgay)))
-                .collect(Collectors.toList());
+                .sorted(Comparator.comparing(Transaction::getNgayTao, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
     }
 
-    @Override
-    public void deleteTransaction(Long id) throws Exception {
-        Transaction transaction = findById(id);
-        transactionRepository.delete(transaction);
+    private String normalize(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed.toLowerCase(Locale.ROOT);
+    }
+
+    private boolean matchesKeyword(Transaction t, String keyword) {
+        if (t.getMaGiaoDich() != null && t.getMaGiaoDich().toLowerCase(Locale.ROOT).contains(keyword)) return true;
+        if (t.getGhiChu() != null && t.getGhiChu().toLowerCase(Locale.ROOT).contains(keyword)) return true;
+        if (t.getMaCongTT() != null && t.getMaCongTT().toLowerCase(Locale.ROOT).contains(keyword)) return true;
+        if (t.getDuLieuTT() != null && t.getDuLieuTT().toLowerCase(Locale.ROOT).contains(keyword)) return true;
+        if (matchesMaHoaDon(t, keyword)) return true;
+        return matchesTenKhachThue(t, keyword);
+    }
+
+    private boolean matchesMaHoaDon(Transaction t, String maHoaDon) {
+        return t.getHoaDon() != null && t.getHoaDon().getMaHoaDon() != null
+                && t.getHoaDon().getMaHoaDon().toLowerCase(Locale.ROOT).contains(maHoaDon);
+    }
+
+    private boolean matchesTenKhachThue(Transaction t, String tenKhach) {
+        if (t.getHoaDon() == null || t.getHoaDon().getHopDong() == null) return false;
+        if (t.getHoaDon().getHopDong().getKhachThue() == null) return false;
+        String name = t.getHoaDon().getHopDong().getKhachThue().getHoTen();
+        return name != null && name.toLowerCase(Locale.ROOT).contains(tenKhach);
     }
 }
