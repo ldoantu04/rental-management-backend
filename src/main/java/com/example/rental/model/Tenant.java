@@ -1,11 +1,15 @@
 package com.example.rental.model;
 
 import com.example.rental.domain.Gender;
+import com.example.rental.domain.TenantStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "khach_thue")
@@ -32,6 +36,25 @@ public class Tenant {
     private String diaChi;
 
     private String hinhAnh;
+
+    @ElementCollection
+    @CollectionTable(name = "khach_thue_anh_giay_to", joinColumns = @JoinColumn(name = "maKhachThue"))
+    @Column(name = "urlAnh")
+    private List<String> anhGiayTo = new ArrayList<>();
+
+    @OneToMany(mappedBy = "khachThue", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<Roommate> danhSachNguoiOCung = new ArrayList<>();
+
+    @ManyToOne
+    @JoinColumn(name = "maPhongTro")
+    private Room phongTro;
+
+    private LocalDate ngayBatDauThue;
+
+    private BigDecimal tienCoc;
+
+    @Enumerated(EnumType.STRING)
+    private TenantStatus trangThai;
 
     private String ghiChu;
 

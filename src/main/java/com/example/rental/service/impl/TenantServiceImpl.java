@@ -1,16 +1,25 @@
 package com.example.rental.service.impl;
 
 import com.example.rental.domain.ContractStatus;
+import com.example.rental.domain.RoomStatus;
+import com.example.rental.domain.TenantStatus;
+import com.example.rental.dto.RoommateRequest;
 import com.example.rental.dto.TenantRequest;
 import com.example.rental.model.Contract;
+import com.example.rental.model.Roommate;
+import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
 import com.example.rental.repository.ContractRepository;
+import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
 import com.example.rental.service.TenantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -19,10 +28,11 @@ public class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
     private final ContractRepository contractRepository;
+    private final RoomRepository roomRepository;
 
     @Override
+    @Transactional
     public Tenant createTenant(TenantRequest req) throws Exception {
-        // Kiem tra CCCD bi trung (SRS 6b)
         if (req.getCccd() != null) {
             Tenant existTenant = tenantRepository.findByCccd(req.getCccd());
             if (existTenant != null) {
@@ -39,14 +49,20 @@ public class TenantServiceImpl implements TenantService {
         tenant.setEmail(req.getEmail());
         tenant.setDiaChi(req.getDiaChi());
         tenant.setHinhAnh(req.getHinhAnh());
+        tenant.setAnhGiayTo(req.getAnhGiayTo() != null ? req.getAnhGiayTo() : new ArrayList<>());
+
+        tenant.setTrangThai(TenantStatus.CHUA_NHAN_PHONG);
         tenant.setGhiChu(req.getGhiChu());
         tenant.setNgayTao(LocalDateTime.now());
         tenant.setNgaySua(LocalDateTime.now());
 
-        return tenantRepository.save(tenant);
+        Tenant savedTenant = tenantRepository.save(tenant);
+        attachNguoiOCung(savedTenant, req.getDanhSachNguoiOCung());
+        return savedTenant;
     }
 
     @Override
+    @Transactional
     public Tenant updateTenant(Long id, TenantRequest req) throws Exception {
         Tenant tenant = findById(id);
 
@@ -78,6 +94,13 @@ public class TenantServiceImpl implements TenantService {
         if (req.getHinhAnh() != null) {
             tenant.setHinhAnh(req.getHinhAnh());
         }
+        if (req.getAnhGiayTo() != null) {
+            tenant.setAnhGiayTo(req.getAnhGiayTo());
+        }
+        if (req.getDanhSachNguoiOCung() != null) {
+            tenant.getDanhSachNguoiOCung().clear();
+            attachNguoiOCung(tenant, req.getDanhSachNguoiOCung());
+        }
         if (req.getGhiChu() != null) {
             tenant.setGhiChu(req.getGhiChu());
         }
@@ -86,17 +109,60 @@ public class TenantServiceImpl implements TenantService {
         return tenantRepository.save(tenant);
     }
 
+    private void attachNguoiOCung(Tenant tenant, List<RoommateRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return;
+        }
+        for (RoommateRequest req : requests) {
+            if (req.getHoTen() == null || req.getHoTen().trim().isEmpty()) {
+                continue;
+            }
+            Roommate roommate = new Roommate();
+            roommate.setKhachThue(tenant);
+            roommate.setHoTen(req.getHoTen());
+            roommate.setQuanHe(req.getQuanHe());
+            roommate.setCccd(req.getCccd());
+            roommate.setSdt(req.getSdt());
+            roommate.setNgayTao(LocalDateTime.now());
+            tenant.getDanhSachNguoiOCung().add(roommate);
+        }
+    }
+
     @Override
-    public void deleteTenant(Long id) throws Exception {
+    @Transactional
+    public void moveOutTenant(Long id) throws Exception {
         Tenant tenant = findById(id);
 
-        List<Contract> activeContracts = contractRepository
-                .findByKhachThueIdAndTrangThai(id, ContractStatus.DANG_HIEU_LUC);
-        if (!activeContracts.isEmpty()) {
-            throw new Exception("Khong the xoa khach thue khi con hop dong dang hieu luc");
+        if (tenant.getTrangThai() == TenantStatus.DA_CHUYEN_DI) {
+            throw new Exception("Khach thue da o trang thai da chuyen di");
         }
 
-        tenantRepository.delete(tenant);
+        // Hủy các hợp đồng còn hạn của khách thuê
+        List<Contract> activeContracts = contractRepository
+                .findByKhachThueIdAndTrangThai(id, ContractStatus.DANG_HIEU_LUC);
+        for (Contract contract : activeContracts) {
+            contract.setTrangThai(ContractStatus.DA_HUY);
+            contract.setLyDoHuy("Khách trả phòng trước hạn");
+            contract.setNgayHuy(LocalDate.now());
+            contract.setNgaySua(LocalDateTime.now());
+            contractRepository.save(contract);
+        }
+
+        // Giải phóng phòng trọ
+        if (tenant.getPhongTro() != null) {
+            Room room = tenant.getPhongTro();
+            room.setTrangThai(RoomStatus.TRONG);
+            room.setNgaySua(LocalDateTime.now());
+            roomRepository.save(room);
+            tenant.setPhongTro(null);
+        }
+
+        // Cập nhật trạng thái khách thuê
+        tenant.setTrangThai(TenantStatus.DA_CHUYEN_DI);
+        tenant.setNgayBatDauThue(null);
+        tenant.setTienCoc(null);
+        tenant.setNgaySua(LocalDateTime.now());
+        tenantRepository.save(tenant);
     }
 
     @Override
@@ -111,7 +177,7 @@ public class TenantServiceImpl implements TenantService {
     }
 
     @Override
-    public List<Tenant> search(String keyword) {
-        return tenantRepository.search(keyword);
+    public List<Tenant> findByTrangThai(TenantStatus trangThai) {
+        return tenantRepository.findByTrangThaiOrderByNgayTaoDesc(trangThai);
     }
 }
