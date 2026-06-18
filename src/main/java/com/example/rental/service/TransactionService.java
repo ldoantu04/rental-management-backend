@@ -12,6 +12,11 @@ public interface TransactionService {
     Transaction findByMaGiaoDich(String maGiaoDich) throws Exception;
     List<Transaction> findAll();
     List<Transaction> findByInvoiceId(Long hoaDonId);
-    List<Transaction> search(String maGiaoDich, Long hoaDonId, PaymentStatus trangThai,
-                             PaymentMethod hinhThucTT, LocalDateTime tuNgay, LocalDateTime denNgay);
+    List<Transaction> search(String keyword, String maHoaDon, String tenKhachThue,
+                             PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                             LocalDateTime tuNgay, LocalDateTime denNgay);
+    List<Transaction> filterForExport(String keyword, String maHoaDon, String tenKhachThue,
+                                      PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                                      LocalDateTime tuNgay, LocalDateTime denNgay);
+    void deleteTransaction(Long id) throws Exception;
 }

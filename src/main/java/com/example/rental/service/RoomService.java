@@ -13,5 +13,6 @@ public interface RoomService {
     Room findById(Long id) throws Exception;
     List<Room> findAll();
     List<Room> findByMotelId(Long nhaTroId);
+    List<Room> findByTrangThai(RoomStatus trangThai);
     List<Room> search(String maPhong, Long nhaTroId, RoomStatus trangThai);
 }

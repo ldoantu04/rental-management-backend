@@ -28,6 +28,8 @@ public class Room {
 
     private Integer soNguoi;
 
+    private Integer tang;
+
     @Enumerated(EnumType.STRING)
     private RoomStatus trangThai;
 

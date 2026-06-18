@@ -7,32 +7,24 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "chi_tiet_dich_vu")
+@Table(name = "hop_dong_dich_vu")
 @Data
-public class InvoiceServiceItem {
+public class ContractServiceItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "maHoaDon")
+    @JoinColumn(name = "maHopDong")
     @JsonIgnore
-    private Invoice hoaDon;
-
-    @ManyToOne
-    @JoinColumn(name = "maDichVu")
-    private Service danhMucDichVu;
+    private Contract hopDong;
 
     private String tenDichVu;
 
     private String kieuTinh;
 
-    private BigDecimal soLuong;
-
     private BigDecimal donGia;
 
-    private BigDecimal thanhTien;
-
-    private Boolean laTuHopDong = true;
+    private Boolean laDichVuBoSung = false;
 }

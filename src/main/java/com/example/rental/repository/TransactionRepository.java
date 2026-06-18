@@ -15,4 +15,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByHinhThucTT(PaymentMethod hinhThucTT);
     List<Transaction> findByNgayTaoBetween(LocalDateTime from, LocalDateTime to);
     List<Transaction> findAllByOrderByNgayTaoDesc();
+    boolean existsByMaGiaoDich(String maGiaoDich);
+    Transaction findFirstByMaGiaoDichOrderByIdDesc(String maGiaoDich);
 }

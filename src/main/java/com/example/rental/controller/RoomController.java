@@ -4,12 +4,15 @@ import com.example.rental.domain.RoomStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.RoomRequest;
 import com.example.rental.model.Room;
+import com.example.rental.service.InvoiceService;
 import com.example.rental.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -17,6 +20,7 @@ import java.util.List;
 public class RoomController {
 
     private final RoomService roomService;
+    private final InvoiceService invoiceService;
 
     @PostMapping
     public ResponseEntity<Room> createRoom(@RequestBody RoomRequest req) throws Exception {
@@ -52,6 +56,18 @@ public class RoomController {
         return ResponseEntity.ok(rooms);
     }
 
+    @GetMapping("/available")
+    public ResponseEntity<List<Room>> getAvailableRooms() {
+        List<Room> rooms = roomService.findByTrangThai(RoomStatus.TRONG);
+        return ResponseEntity.ok(rooms);
+    }
+
+    @GetMapping("/rented")
+    public ResponseEntity<List<Room>> getRentedRooms() {
+        List<Room> rooms = roomService.findByTrangThai(RoomStatus.DANG_THUE);
+        return ResponseEntity.ok(rooms);
+    }
+
     @GetMapping("/motel/{nhaTroId}")
     public ResponseEntity<List<Room>> getRoomsByMotelId(@PathVariable Long nhaTroId) {
         List<Room> rooms = roomService.findByMotelId(nhaTroId);
@@ -65,5 +81,14 @@ public class RoomController {
             @RequestParam(required = false) RoomStatus trangThai) {
         List<Room> rooms = roomService.search(maPhong, nhaTroId, trangThai);
         return ResponseEntity.ok(rooms);
+    }
+
+    @GetMapping("/{roomId}/people")
+    public ResponseEntity<Map<String, Object>> getRoomPeople(@PathVariable Long roomId) {
+        int people = invoiceService.countPeopleByRoomId(roomId);
+        Map<String, Object> body = new HashMap<>();
+        body.put("roomId", roomId);
+        body.put("soNguoi", people);
+        return ResponseEntity.ok(body);
     }
 }

@@ -37,6 +37,7 @@ public class RoomServiceImpl implements RoomService {
         room.setDienTich(req.getDienTich());
         room.setGiaThue(req.getGiaThue());
         room.setSoNguoi(req.getSoNguoi());
+        room.setTang(req.getTang());
         room.setTrangThai(req.getTrangThai() != null ? req.getTrangThai() : RoomStatus.TRONG);
         room.setGhiChu(req.getGhiChu());
         room.setNgayTao(LocalDateTime.now());
@@ -60,6 +61,9 @@ public class RoomServiceImpl implements RoomService {
         }
         if (req.getSoNguoi() != null) {
             room.setSoNguoi(req.getSoNguoi());
+        }
+        if (req.getTang() != null) {
+            room.setTang(req.getTang());
         }
         if (req.getTrangThai() != null) {
             room.setTrangThai(req.getTrangThai());
@@ -102,6 +106,11 @@ public class RoomServiceImpl implements RoomService {
     @Override
     public List<Room> findByMotelId(Long nhaTroId) {
         return roomRepository.findByNhaTroId(nhaTroId);
+    }
+
+    @Override
+    public List<Room> findByTrangThai(RoomStatus trangThai) {
+        return roomRepository.findByTrangThai(trangThai);
     }
 
     @Override

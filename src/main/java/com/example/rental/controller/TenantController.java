@@ -1,5 +1,6 @@
 package com.example.rental.controller;
 
+import com.example.rental.domain.TenantStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.TenantRequest;
 import com.example.rental.model.Tenant;
@@ -31,11 +32,11 @@ public class TenantController {
         return ResponseEntity.ok(tenant);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse> deleteTenant(@PathVariable Long id) throws Exception {
-        tenantService.deleteTenant(id);
+    @PutMapping("/{id}/move-out")
+    public ResponseEntity<ApiResponse> moveOutTenant(@PathVariable Long id) throws Exception {
+        tenantService.moveOutTenant(id);
         ApiResponse res = new ApiResponse();
-        res.setMessage("Xoa khach thue thanh cong");
+        res.setMessage("Chuyen di thanh cong");
         return ResponseEntity.ok(res);
     }
 
@@ -51,9 +52,9 @@ public class TenantController {
         return ResponseEntity.ok(tenants);
     }
 
-    @GetMapping("/search")
-    public ResponseEntity<List<Tenant>> searchTenants(@RequestParam String keyword) {
-        List<Tenant> tenants = tenantService.search(keyword);
+    @GetMapping("/available")
+    public ResponseEntity<List<Tenant>> getAvailableTenants() {
+        List<Tenant> tenants = tenantService.findByTrangThai(TenantStatus.CHUA_NHAN_PHONG);
         return ResponseEntity.ok(tenants);
     }
 }
