@@ -4,7 +4,9 @@ import com.example.rental.domain.ContractStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.ContractRequest;
 import com.example.rental.model.Contract;
+import com.example.rental.model.User;
 import com.example.rental.service.ContractService;
+import com.example.rental.service.UserService;
 import com.example.rental.service.utils.ContractPdfService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -22,18 +24,24 @@ public class ContractController {
 
     private final ContractService contractService;
     private final ContractPdfService contractPdfService;
+    private final UserService userService;
 
     @PostMapping
-    public ResponseEntity<Contract> createContract(@RequestBody ContractRequest req) throws Exception {
-        Contract contract = contractService.createContract(req);
+    public ResponseEntity<Contract> createContract(
+            @RequestBody ContractRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Contract contract = contractService.createContract(req, user);
         return ResponseEntity.ok(contract);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Contract> updateContract(
             @PathVariable Long id,
-            @RequestBody ContractRequest req) throws Exception {
-        Contract contract = contractService.updateContract(id, req);
+            @RequestBody ContractRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Contract contract = contractService.updateContract(id, req, user);
         return ResponseEntity.ok(contract);
     }
 

@@ -4,13 +4,16 @@ import com.example.rental.domain.InvoiceStatus;
 import com.example.rental.dto.InvoiceRequest;
 import com.example.rental.model.Contract;
 import com.example.rental.model.Invoice;
+import com.example.rental.model.User;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 public interface InvoiceService {
     Invoice createInvoice(InvoiceRequest req) throws Exception;
+    Invoice createInvoice(InvoiceRequest req, User nguoiTao) throws Exception;
     Invoice updateInvoice(Long id, InvoiceRequest req) throws Exception;
+    Invoice updateInvoice(Long id, InvoiceRequest req, User nguoiSua) throws Exception;
     void deleteInvoice(Long id) throws Exception;
     Invoice findById(Long id) throws Exception;
     Invoice findByMaHoaDon(String maHoaDon) throws Exception;
@@ -19,6 +22,7 @@ public interface InvoiceService {
     List<Invoice> findByTrangThai(InvoiceStatus trangThai);
     List<Invoice> search(String keyword, InvoiceStatus trangThai);
     Invoice markAsPaid(Long id) throws Exception;
+    Invoice markAsPaid(Long id, User nguoiThanhToan) throws Exception;
     Invoice findLatestByHopDongId(Long hopDongId);
     BigDecimal computeElectricAmount(Contract contract, InvoiceRequest req);
     BigDecimal computeWaterAmount(Contract contract, InvoiceRequest req);

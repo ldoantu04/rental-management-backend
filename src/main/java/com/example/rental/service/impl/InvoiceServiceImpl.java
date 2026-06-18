@@ -13,6 +13,7 @@ import com.example.rental.model.InvoiceServiceItem;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
 import com.example.rental.model.Transaction;
+import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.InvoiceServiceItemRepository;
@@ -21,6 +22,7 @@ import com.example.rental.repository.TenantRepository;
 import com.example.rental.repository.TransactionRepository;
 import com.example.rental.service.EmailService;
 import com.example.rental.service.InvoiceService;
+import com.example.rental.service.NotificationService;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +51,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final TransactionRepository transactionRepository;
     private final EmailService emailService;
     private final VNPayConfig vnPayConfig;
+    private final NotificationService notificationService;
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("MM/yyyy");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -57,6 +60,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Invoice createInvoice(InvoiceRequest req) throws Exception {
+        return createInvoice(req, null);
+    }
+
+    @Override
+    @Transactional
+    public Invoice createInvoice(InvoiceRequest req, User nguoiTao) throws Exception {
         Contract contract = contractRepository.findById(req.getMaHopDong())
                 .orElseThrow(() -> new Exception("Khong tim thay hop dong voi id " + req.getMaHopDong()));
 
@@ -85,18 +94,26 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setHanThanhToan(req.getHanThanhToan());
         invoice.setTrangThai(InvoiceStatus.CHUA_THANH_TOAN);
         invoice.setGhiChu(req.getGhiChu());
+        invoice.setNguoiTao(nguoiTao);
         invoice.setNgayTao(LocalDateTime.now());
         invoice.setNgaySua(LocalDateTime.now());
 
         Invoice saved = invoiceRepository.save(invoice);
         syncServiceItems(saved, req.getDanhSachDichVu());
         sendInvoiceNotification(saved);
+        notificationService.notifyInvoiceCreated(nguoiTao, saved.getId());
         return saved;
     }
 
     @Override
     @Transactional
     public Invoice updateInvoice(Long id, InvoiceRequest req) throws Exception {
+        return updateInvoice(id, req, null);
+    }
+
+    @Override
+    @Transactional
+    public Invoice updateInvoice(Long id, InvoiceRequest req, User nguoiSua) throws Exception {
         Invoice invoice = findById(id);
 
         if (invoice.getTrangThai() != InvoiceStatus.CHUA_THANH_TOAN) {
@@ -239,6 +256,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Invoice markAsPaid(Long id) throws Exception {
+        return markAsPaid(id, null);
+    }
+
+    @Override
+    @Transactional
+    public Invoice markAsPaid(Long id, User nguoiThanhToan) throws Exception {
         Invoice invoice = findById(id);
         if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) {
             throw new Exception("Hoa don da duoc thanh toan truoc do");
@@ -263,7 +286,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoice.setTrangThai(InvoiceStatus.DA_THANH_TOAN);
         invoice.setNgaySua(LocalDateTime.now());
-        return invoiceRepository.save(invoice);
+        Invoice saved = invoiceRepository.save(invoice);
+        notificationService.notifyInvoicePaid(nguoiThanhToan, saved.getId(), "tien mat");
+        return saved;
     }
 
     private String generateMaGiaoDich() {

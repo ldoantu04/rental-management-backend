@@ -9,6 +9,7 @@ import com.example.rental.model.Contract;
 import com.example.rental.model.ContractServiceItem;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
+import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.ContractServiceItemRepository;
 import com.example.rental.repository.RoomRepository;
@@ -35,6 +36,12 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public Contract createContract(ContractRequest req) throws Exception {
+        return createContract(req, null);
+    }
+
+    @Override
+    @Transactional
+    public Contract createContract(ContractRequest req, User nguoiTao) throws Exception {
         Tenant tenant = tenantRepository.findById(req.getMaKhachThue())
                 .orElseThrow(() -> new Exception("Khong tim thay khach thue voi id " + req.getMaKhachThue()));
 
@@ -71,6 +78,7 @@ public class ContractServiceImpl implements ContractService {
         contract.setDichVu(req.getDichVu());
         contract.setFileHopDong(req.getFileHopDong());
         contract.setTrangThai(ContractStatus.DANG_HIEU_LUC);
+        contract.setNguoiTao(nguoiTao);
         contract.setNgayTao(LocalDateTime.now());
         contract.setNgaySua(LocalDateTime.now());
 
@@ -83,6 +91,12 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public Contract updateContract(Long id, ContractRequest req) throws Exception {
+        return updateContract(id, req, null);
+    }
+
+    @Override
+    @Transactional
+    public Contract updateContract(Long id, ContractRequest req, User nguoiSua) throws Exception {
         Contract contract = findById(id);
 
         if (req.getMaKhachThue() != null) {

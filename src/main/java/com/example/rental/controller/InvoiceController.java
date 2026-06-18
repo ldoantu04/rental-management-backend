@@ -4,7 +4,9 @@ import com.example.rental.domain.InvoiceStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.InvoiceRequest;
 import com.example.rental.model.Invoice;
+import com.example.rental.model.User;
 import com.example.rental.service.InvoiceService;
+import com.example.rental.service.UserService;
 import com.example.rental.service.utils.InvoicePdfService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -21,18 +23,24 @@ public class InvoiceController {
 
     private final InvoiceService invoiceService;
     private final InvoicePdfService invoicePdfService;
+    private final UserService userService;
 
     @PostMapping
-    public ResponseEntity<Invoice> createInvoice(@RequestBody InvoiceRequest req) throws Exception {
-        Invoice invoice = invoiceService.createInvoice(req);
+    public ResponseEntity<Invoice> createInvoice(
+            @RequestBody InvoiceRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Invoice invoice = invoiceService.createInvoice(req, user);
         return ResponseEntity.ok(invoice);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Invoice> updateInvoice(
             @PathVariable Long id,
-            @RequestBody InvoiceRequest req) throws Exception {
-        Invoice invoice = invoiceService.updateInvoice(id, req);
+            @RequestBody InvoiceRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Invoice invoice = invoiceService.updateInvoice(id, req, user);
         return ResponseEntity.ok(invoice);
     }
 
@@ -86,8 +94,11 @@ public class InvoiceController {
     }
 
     @PutMapping("/{id}/pay")
-    public ResponseEntity<Invoice> markAsPaid(@PathVariable Long id) throws Exception {
-        Invoice invoice = invoiceService.markAsPaid(id);
+    public ResponseEntity<Invoice> markAsPaid(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Invoice invoice = invoiceService.markAsPaid(id, user);
         return ResponseEntity.ok(invoice);
     }
 

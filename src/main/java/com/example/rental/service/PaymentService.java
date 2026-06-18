@@ -4,10 +4,16 @@ import com.example.rental.config.VNPayConfig;
 import com.example.rental.domain.InvoiceStatus;
 import com.example.rental.domain.PaymentMethod;
 import com.example.rental.domain.PaymentStatus;
+import com.example.rental.model.Contract;
 import com.example.rental.model.Invoice;
+import com.example.rental.model.Motel;
+import com.example.rental.model.Room;
 import com.example.rental.model.Transaction;
+import com.example.rental.model.User;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.TransactionRepository;
+import com.example.rental.repository.UserRepository;
+import com.example.rental.service.NotificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +43,8 @@ public class PaymentService {
     private final VNPayConfig vnPayConfig;
     private final InvoiceRepository invoiceRepository;
     private final TransactionRepository transactionRepository;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     public static class PaymentResult {
         private final String code;
@@ -159,6 +167,8 @@ public class PaymentService {
         invoice.setNgaySua(LocalDateTime.now());
         invoiceRepository.save(invoice);
         log.info("IPN thanh cong: hoa don {} da duoc cap nhat PAID", invoice.getMaHoaDon());
+        User owner = resolveOwner(invoice);
+        notificationService.notifyInvoicePaid(owner, invoice.getId(), "VNPay");
     }
 
     @Transactional
@@ -233,5 +243,19 @@ public class PaymentService {
         if (transactionNo != null) sb.append("VnpTxn:").append(transactionNo).append(';');
         if (payDate != null) sb.append("PayDate:").append(payDate).append(';');
         return sb.toString();
+    }
+
+    private User resolveOwner(Invoice invoice) {
+        if (invoice == null) return null;
+        if (invoice.getNguoiTao() != null) return invoice.getNguoiTao();
+        Contract contract = invoice.getHopDong();
+        if (contract != null && contract.getNguoiTao() != null) return contract.getNguoiTao();
+        if (contract != null && contract.getPhongTro() != null) {
+            Room room = contract.getPhongTro();
+            Motel motel = room.getNhaTro();
+            if (motel != null && motel.getNguoiTao() != null) return motel.getNguoiTao();
+        }
+        List<User> users = userRepository.findAll();
+        return users.isEmpty() ? null : users.get(0);
     }
 }
