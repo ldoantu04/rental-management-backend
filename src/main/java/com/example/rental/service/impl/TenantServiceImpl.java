@@ -9,10 +9,12 @@ import com.example.rental.model.Contract;
 import com.example.rental.model.Roommate;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
+import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
 import com.example.rental.service.TenantService;
+import com.example.rental.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,10 +33,17 @@ public class TenantServiceImpl implements TenantService {
     private final TenantRepository tenantRepository;
     private final ContractRepository contractRepository;
     private final RoomRepository roomRepository;
+    private final UserService userService;
 
     @Override
     @Transactional
     public Tenant createTenant(TenantRequest req) throws Exception {
+        return createTenant(req, null);
+    }
+
+    @Override
+    @Transactional
+    public Tenant createTenant(TenantRequest req, User nguoiTao) throws Exception {
         if (req.getCccd() != null) {
             Tenant existTenant = tenantRepository.findByCccd(req.getCccd());
             if (existTenant != null) {
@@ -64,7 +75,13 @@ public class TenantServiceImpl implements TenantService {
     @Override
     @Transactional
     public Tenant updateTenant(Long id, TenantRequest req) throws Exception {
-        Tenant tenant = findById(id);
+        return updateTenant(id, req, null);
+    }
+
+    @Override
+    @Transactional
+    public Tenant updateTenant(Long id, TenantRequest req, User nguoiSua) throws Exception {
+        Tenant tenant = findById(id, nguoiSua);
 
         if (req.getHoTen() != null) {
             tenant.setHoTen(req.getHoTen());
@@ -131,13 +148,18 @@ public class TenantServiceImpl implements TenantService {
     @Override
     @Transactional
     public void moveOutTenant(Long id) throws Exception {
-        Tenant tenant = findById(id);
+        moveOutTenant(id, null);
+    }
+
+    @Override
+    @Transactional
+    public void moveOutTenant(Long id, User nguoiThucHien) throws Exception {
+        Tenant tenant = findById(id, nguoiThucHien);
 
         if (tenant.getTrangThai() == TenantStatus.DA_CHUYEN_DI) {
             throw new Exception("Khach thue da o trang thai da chuyen di");
         }
 
-        // Hủy các hợp đồng còn hạn của khách thuê
         List<Contract> activeContracts = contractRepository
                 .findByKhachThueIdAndTrangThai(id, ContractStatus.DANG_HIEU_LUC);
         for (Contract contract : activeContracts) {
@@ -148,7 +170,6 @@ public class TenantServiceImpl implements TenantService {
             contractRepository.save(contract);
         }
 
-        // Giải phóng phòng trọ
         if (tenant.getPhongTro() != null) {
             Room room = tenant.getPhongTro();
             room.setTrangThai(RoomStatus.TRONG);
@@ -157,7 +178,6 @@ public class TenantServiceImpl implements TenantService {
             tenant.setPhongTro(null);
         }
 
-        // Cập nhật trạng thái khách thuê
         tenant.setTrangThai(TenantStatus.DA_CHUYEN_DI);
         tenant.setNgayBatDauThue(null);
         tenant.setTienCoc(null);
@@ -167,8 +187,19 @@ public class TenantServiceImpl implements TenantService {
 
     @Override
     public Tenant findById(Long id) throws Exception {
-        return tenantRepository.findById(id)
+        return findById(id, null);
+    }
+
+    @Override
+    public Tenant findById(Long id, User currentUser) throws Exception {
+        Tenant tenant = tenantRepository.findById(id)
                 .orElseThrow(() -> new Exception("Khong tim thay khach thue voi id " + id));
+        if (currentUser != null && !userService.isAdmin(currentUser)) {
+            if (!userService.canAccessTenant(currentUser, id)) {
+                throw new Exception("Ban khong co quyen truy cap khach thue nay");
+            }
+        }
+        return tenant;
     }
 
     @Override
@@ -177,7 +208,33 @@ public class TenantServiceImpl implements TenantService {
     }
 
     @Override
+    public List<Tenant> findAll(User currentUser) {
+        if (currentUser == null || userService.isAdmin(currentUser)) {
+            return findAll();
+        }
+        Set<Long> allowedMotelIds = userService.getAssignedMotelIds(currentUser);
+        return tenantRepository.findAllByOrderByNgayTaoDesc().stream()
+                .filter(t -> {
+                    if (t.getPhongTro() == null) {
+                        return true;
+                    }
+                    if (t.getPhongTro().getNhaTro() == null) {
+                        return false;
+                    }
+                    return allowedMotelIds.contains(t.getPhongTro().getNhaTro().getId());
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Tenant> findByTrangThai(TenantStatus trangThai) {
-        return tenantRepository.findByTrangThaiOrderByNgayTaoDesc(trangThai);
+        return findByTrangThai(trangThai, null);
+    }
+
+    @Override
+    public List<Tenant> findByTrangThai(TenantStatus trangThai, User currentUser) {
+        return findAll(currentUser).stream()
+                .filter(t -> trangThai == null || t.getTrangThai() == trangThai)
+                .collect(Collectors.toList());
     }
 }

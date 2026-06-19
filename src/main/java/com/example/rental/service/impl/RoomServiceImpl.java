@@ -4,14 +4,17 @@ import com.example.rental.domain.RoomStatus;
 import com.example.rental.dto.RoomRequest;
 import com.example.rental.model.Motel;
 import com.example.rental.model.Room;
+import com.example.rental.model.User;
 import com.example.rental.repository.MotelRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.service.RoomService;
+import com.example.rental.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,9 +23,22 @@ public class RoomServiceImpl implements RoomService {
 
     private final RoomRepository roomRepository;
     private final MotelRepository motelRepository;
+    private final UserService userService;
 
     @Override
     public Room createRoom(RoomRequest req) throws Exception {
+        return createRoom(req, null);
+    }
+
+    @Override
+    public Room createRoom(RoomRequest req, User nguoiTao) throws Exception {
+        if (nguoiTao != null && !userService.isAdmin(nguoiTao)) {
+            boolean canAccess = userService.canAccessMotel(nguoiTao, req.getMaNhaTro());
+            if (!canAccess) {
+                throw new Exception("Ban khong co quyen tao phong tai nha tro nay");
+            }
+        }
+
         Motel motel = motelRepository.findById(req.getMaNhaTro())
                 .orElseThrow(() -> new Exception("Khong tim thay nha tro voi id " + req.getMaNhaTro()));
 
@@ -48,7 +64,12 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public Room updateRoom(Long id, RoomRequest req) throws Exception {
-        Room room = findById(id);
+        return updateRoom(id, req, null);
+    }
+
+    @Override
+    public Room updateRoom(Long id, RoomRequest req, User nguoiSua) throws Exception {
+        Room room = findById(id, nguoiSua);
 
         if (req.getMaPhong() != null) {
             room.setMaPhong(req.getMaPhong());
@@ -72,6 +93,13 @@ public class RoomServiceImpl implements RoomService {
             room.setGhiChu(req.getGhiChu());
         }
         if (req.getMaNhaTro() != null) {
+            if (nguoiSua != null && !userService.isAdmin(nguoiSua)) {
+                boolean canAccessOld = userService.canAccessMotel(nguoiSua, room.getNhaTro().getId());
+                boolean canAccessNew = userService.canAccessMotel(nguoiSua, req.getMaNhaTro());
+                if (!canAccessOld || !canAccessNew) {
+                    throw new Exception("Ban khong co quyen cap nhat phong nay");
+                }
+            }
             Motel motel = motelRepository.findById(req.getMaNhaTro())
                     .orElseThrow(() -> new Exception("Khong tim thay nha tro voi id " + req.getMaNhaTro()));
             room.setNhaTro(motel);
@@ -83,7 +111,12 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public void deleteRoom(Long id) throws Exception {
-        Room room = findById(id);
+        deleteRoom(id, null);
+    }
+
+    @Override
+    public void deleteRoom(Long id, User nguoiXoa) throws Exception {
+        Room room = findById(id, nguoiXoa);
 
         if (room.getTrangThai() == RoomStatus.DANG_THUE) {
             throw new Exception("Khong the xoa phong dang co nguoi thue");
@@ -94,8 +127,19 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public Room findById(Long id) throws Exception {
-        return roomRepository.findById(id)
+        return findById(id, null);
+    }
+
+    @Override
+    public Room findById(Long id, User currentUser) throws Exception {
+        Room room = roomRepository.findById(id)
                 .orElseThrow(() -> new Exception("Khong tim thay phong tro voi id " + id));
+        if (currentUser != null && !userService.isAdmin(currentUser)) {
+            if (!userService.canAccessMotel(currentUser, room.getNhaTro().getId())) {
+                throw new Exception("Ban khong co quyen truy cap phong nay");
+            }
+        }
+        return room;
     }
 
     @Override
@@ -104,22 +148,55 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    public List<Room> findAll(User currentUser) {
+        if (currentUser == null || userService.isAdmin(currentUser)) {
+            return findAll();
+        }
+        Set<Long> allowedMotelIds = userService.getAssignedMotelIds(currentUser);
+        return roomRepository.findAllByOrderByNgayTaoDesc().stream()
+                .filter(r -> r.getNhaTro() != null && allowedMotelIds.contains(r.getNhaTro().getId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Room> findByMotelId(Long nhaTroId) {
+        return findByMotelId(nhaTroId, null);
+    }
+
+    @Override
+    public List<Room> findByMotelId(Long nhaTroId, User currentUser) {
+        if (currentUser != null && !userService.isAdmin(currentUser)) {
+            if (!userService.canAccessMotel(currentUser, nhaTroId)) {
+                return List.of();
+            }
+        }
         return roomRepository.findByNhaTroId(nhaTroId);
     }
 
     @Override
     public List<Room> findByTrangThai(RoomStatus trangThai) {
-        return roomRepository.findByTrangThai(trangThai);
+        return findByTrangThai(trangThai, null);
+    }
+
+    @Override
+    public List<Room> findByTrangThai(RoomStatus trangThai, User currentUser) {
+        return findAll(currentUser).stream()
+                .filter(r -> trangThai == null || r.getTrangThai() == trangThai)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<Room> search(String maPhong, Long nhaTroId, RoomStatus trangThai) {
-        List<Room> rooms = roomRepository.findAll();
+        return search(maPhong, nhaTroId, trangThai, null);
+    }
+
+    @Override
+    public List<Room> search(String maPhong, Long nhaTroId, RoomStatus trangThai, User currentUser) {
+        List<Room> rooms = findAll(currentUser);
 
         return rooms.stream()
                 .filter(r -> maPhong == null || r.getMaPhong().toLowerCase().contains(maPhong.toLowerCase()))
-                .filter(r -> nhaTroId == null || r.getNhaTro().getId().equals(nhaTroId))
+                .filter(r -> nhaTroId == null || (r.getNhaTro() != null && r.getNhaTro().getId().equals(nhaTroId)))
                 .filter(r -> trangThai == null || r.getTrangThai() == trangThai)
                 .collect(Collectors.toList());
     }

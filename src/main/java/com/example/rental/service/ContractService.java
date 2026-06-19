@@ -12,9 +12,12 @@ public interface ContractService {
     Contract createContract(ContractRequest req, User nguoiTao) throws Exception;
     Contract updateContract(Long id, ContractRequest req) throws Exception;
     Contract updateContract(Long id, ContractRequest req, User nguoiSua) throws Exception;
-    void cancelContract(Long id, String lyDoHuy) throws Exception;
+    void cancelContract(Long id, String lyDoHuy, User currentUser) throws Exception;
     Contract findById(Long id) throws Exception;
+    Contract findById(Long id, User currentUser) throws Exception;
     List<Contract> findAll();
+    List<Contract> findAll(User currentUser);
     List<Contract> findByTrangThai(ContractStatus trangThai);
+    List<Contract> findByTrangThai(ContractStatus trangThai, User currentUser);
     List<Contract> findByPhongTroIdAndTrangThai(Long phongTroId, ContractStatus trangThai);
 }

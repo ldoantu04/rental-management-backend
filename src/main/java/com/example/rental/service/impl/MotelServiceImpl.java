@@ -18,7 +18,7 @@ import java.util.List;
 public class MotelServiceImpl implements MotelService {
 
     private final MotelRepository motelRepository;
-    private final RoomRepository romeRepository;
+    private final RoomRepository roomRepository;
 
     @Override
     public Motel createMotel(MotelRequest req, User nguoiTao) throws Exception {
@@ -71,7 +71,7 @@ public class MotelServiceImpl implements MotelService {
     @Override
     public void deleteMotel(Long id) throws Exception {
         Motel motel = findById(id);
-        long roomCount = romeRepository.findByNhaTroId(id).stream().filter(room -> room.getTrangThai() == RoomStatus.DANG_THUE).count();
+        long roomCount = roomRepository.findByNhaTroId(id).stream().filter(room -> room.getTrangThai() == RoomStatus.DANG_THUE).count();
         if (roomCount > 0) {
             throw new Exception("Khong the xoa nha tro khi con phong dang cho thue");
         }

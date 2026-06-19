@@ -40,7 +40,6 @@ public class StaffServiceImpl implements StaffService {
         user.setNgaySinh(req.getNgaySinh());
         user.setDiaChi(req.getDiaChi());
         user.setVaiTro(req.getVaiTro() != null ? req.getVaiTro() : UserRole.NHAN_VIEN);
-        user.setPhamViQuanLy(req.getPhamViQuanLy());
         user.setTrangThai(req.getTrangThai() != null ? req.getTrangThai() : UserStatus.HOAT_DONG);
         user.setGhiChu(req.getGhiChu());
         user.setNgayTao(LocalDateTime.now());
@@ -79,9 +78,6 @@ public class StaffServiceImpl implements StaffService {
         }
         if (req.getVaiTro() != null) {
             user.setVaiTro(req.getVaiTro());
-        }
-        if (req.getPhamViQuanLy() != null) {
-            user.setPhamViQuanLy(req.getPhamViQuanLy());
         }
         if (req.getTrangThai() != null) {
             user.setTrangThai(req.getTrangThai());

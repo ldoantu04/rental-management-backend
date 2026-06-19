@@ -23,6 +23,7 @@ import com.example.rental.service.InvoiceService;
 import com.example.rental.service.MotelService;
 import com.example.rental.service.RoomService;
 import com.example.rental.service.TenantService;
+import com.example.rental.service.UserService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,11 +57,13 @@ public class BusinessToolService {
     private final ContractRepository contractRepository;
     private final InvoiceService invoiceService;
     private final MotelService motelService;
+    private final UserService userService;
 
     public Map<String, Object> getRoomOverview(JsonNode args, User user) throws Exception {
         String roomCode = text(args, "maPhong");
         String motelName = text(args, "tenNhaTro");
         Room room = resolver.resolveRoom(roomCode, motelName);
+        requireAccessRoom(user, room);
         Contract contract = null;
         try {
             contract = resolver.resolveCurrentContract(room);
@@ -137,6 +140,7 @@ public class BusinessToolService {
 
     public Map<String, Object> checkRoomStatus(JsonNode args, User user) throws Exception {
         Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
+        requireAccessRoom(user, room);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("phong", room.getMaPhong());
         data.put("nhaTro", room.getNhaTro() != null ? room.getNhaTro().getTenTro() : "N/A");
@@ -149,6 +153,7 @@ public class BusinessToolService {
 
     public Map<String, Object> createContractForRoom(JsonNode args, User user) throws Exception {
         Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
+        requireAccessRoom(user, room);
         if (room.getTrangThai() == RoomStatus.DANG_THUE) {
             List<Contract> active = contractRepository.findByPhongTroIdAndTrangThai(
                     room.getId(), ContractStatus.DANG_HIEU_LUC);
@@ -246,7 +251,7 @@ public class BusinessToolService {
         Contract contract = resolver.resolveContractByCode(text(args, "maHopDong"));
         String lyDo = text(args, "lyDo");
         if (lyDo == null) lyDo = "Tra phong theo yeu cau AI";
-        contractService.cancelContract(contract.getId(), lyDo);
+        contractService.cancelContract(contract.getId(), lyDo, user);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("maHopDong", contract.getMaHopDong());
         data.put("lyDo", lyDo);
@@ -267,7 +272,7 @@ public class BusinessToolService {
         }
         String lyDo = text(args, "lyDo");
         if (lyDo == null) lyDo = "Tra phong theo yeu cau";
-        contractService.cancelContract(contract.getId(), lyDo);
+        contractService.cancelContract(contract.getId(), lyDo, user);
 
         Room room = contract.getPhongTro();
         if (room != null) {
@@ -283,6 +288,7 @@ public class BusinessToolService {
 
     public Map<String, Object> createInvoiceForRoom(JsonNode args, User user) throws Exception {
         Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
+        requireAccessRoom(user, room);
         Contract contract = resolver.resolveCurrentContract(room);
 
         InvoiceRequest req = new InvoiceRequest();
@@ -454,7 +460,7 @@ public class BusinessToolService {
         if (req.getMaNhaTro() == null) throw new IllegalArgumentException("Thieu nha tro");
         if (req.getMaPhong() == null || req.getMaPhong().isBlank()) throw new IllegalArgumentException("Thieu ma phong");
         if (req.getGiaThue() == null) throw new IllegalArgumentException("Thieu gia thue");
-        Room created = roomService.createRoom(req);
+        Room created = roomService.createRoom(req, user);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", created.getId());
         data.put("maPhong", created.getMaPhong());
@@ -495,7 +501,7 @@ public class BusinessToolService {
         if (newRoom.getTrangThai() == RoomStatus.DANG_THUE) {
             throw new IllegalArgumentException("Phong moi dang co nguoi thue");
         }
-        contractService.cancelContract(old.getId(), "Chuyen sang phong " + newRoom.getMaPhong());
+        contractService.cancelContract(old.getId(), "Chuyen sang phong " + newRoom.getMaPhong(), user);
 
         ContractRequest req = new ContractRequest();
         req.setMaKhachThue(old.getKhachThue().getId());
@@ -723,6 +729,18 @@ public class BusinessToolService {
             throw new IllegalArgumentException("Hoa don da duoc thanh toan");
         }
         return collectPayment(args, user);
+    }
+
+    private void requireAccessRoom(User user, Room room) throws Exception {
+        if (room == null) return;
+        if (room.getNhaTro() == null) return;
+        if (user == null) return;
+        if (user.getVaiTro() == UserRole.QUAN_LY) return;
+        if (!userService.canAccessRoom(user, room.getId())) {
+            throw new IllegalArgumentException(
+                    "Ban khong co quyen truy cap phong " + room.getMaPhong() +
+                    " thuoc nha tro " + (room.getNhaTro() != null ? room.getNhaTro().getTenTro() : ""));
+        }
     }
 
     private RoomRequest toRoomRequest(Room r) {

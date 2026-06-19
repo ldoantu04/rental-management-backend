@@ -98,6 +98,10 @@ public class ChatActionService {
     private com.example.rental.model.Room createRoom(JsonNode p, User user) throws Exception {
         RoomRequest req = new RoomRequest();
         if (p.hasNonNull("maNhaTro")) req.setMaNhaTro(p.get("maNhaTro").asLong());
+        if (p.hasNonNull("tenNhaTro")) {
+            com.example.rental.model.Motel motel = resolver.resolveMotel(p.get("tenNhaTro").asText());
+            req.setMaNhaTro(motel.getId());
+        }
         if (p.hasNonNull("maPhong")) req.setMaPhong(p.get("maPhong").asText());
         if (p.hasNonNull("giaThue")) req.setGiaThue(new BigDecimal(p.get("giaThue").asText()));
         if (p.hasNonNull("dienTich")) req.setDienTich(new BigDecimal(p.get("dienTich").asText()));

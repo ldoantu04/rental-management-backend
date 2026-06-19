@@ -4,7 +4,9 @@ import com.example.rental.domain.PaymentMethod;
 import com.example.rental.domain.PaymentStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.model.Transaction;
+import com.example.rental.model.User;
 import com.example.rental.service.TransactionService;
+import com.example.rental.service.UserService;
 import com.example.rental.service.utils.TransactionExcelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -23,10 +25,13 @@ public class TransactionController {
 
     private final TransactionService transactionService;
     private final TransactionExcelService transactionExcelService;
+    private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<List<Transaction>> getAllTransactions() {
-        List<Transaction> transactions = transactionService.findAll();
+    public ResponseEntity<List<Transaction>> getAllTransactions(
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Transaction> transactions = transactionService.findAll(user);
         return ResponseEntity.ok(transactions);
     }
 
@@ -56,9 +61,11 @@ public class TransactionController {
             @RequestParam(required = false) PaymentStatus trangThai,
             @RequestParam(required = false) PaymentMethod hinhThucTT,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime tuNgay,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
         List<Transaction> transactions = transactionService.search(
-                keyword, maHoaDon, tenKhachThue, trangThai, hinhThucTT, tuNgay, denNgay);
+                keyword, maHoaDon, tenKhachThue, trangThai, hinhThucTT, tuNgay, denNgay, user);
         return ResponseEntity.ok(transactions);
     }
 
@@ -70,9 +77,11 @@ public class TransactionController {
             @RequestParam(required = false) PaymentStatus trangThai,
             @RequestParam(required = false) PaymentMethod hinhThucTT,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime tuNgay,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay) throws Exception {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
         List<Transaction> transactions = transactionService.filterForExport(
-                keyword, maHoaDon, tenKhachThue, trangThai, hinhThucTT, tuNgay, denNgay);
+                keyword, maHoaDon, tenKhachThue, trangThai, hinhThucTT, tuNgay, denNgay, user);
         byte[] data = transactionExcelService.exportTransactions(transactions);
 
         HttpHeaders headers = new HttpHeaders();

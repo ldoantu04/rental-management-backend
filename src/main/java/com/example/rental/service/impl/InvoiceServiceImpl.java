@@ -23,6 +23,7 @@ import com.example.rental.repository.TransactionRepository;
 import com.example.rental.service.EmailService;
 import com.example.rental.service.InvoiceService;
 import com.example.rental.service.NotificationService;
+import com.example.rental.service.UserService;
 import com.example.rental.service.utils.InvoicePricingEngine;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,6 +56,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final EmailService emailService;
     private final VNPayConfig vnPayConfig;
     private final NotificationService notificationService;
+    private final UserService userService;
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("MM/yyyy");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -217,22 +220,20 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
-    @Transactional
-    public void deleteInvoice(Long id) throws Exception {
-        Invoice invoice = findById(id);
-
-        if (invoice.getTrangThai() != InvoiceStatus.CHUA_THANH_TOAN) {
-            throw new Exception("Hoa don da thanh toan, khong the xoa");
-        }
-
-        invoiceServiceItemRepository.deleteByHoaDonId(invoice.getId());
-        invoiceRepository.delete(invoice);
+    public Invoice findById(Long id) throws Exception {
+        return findById(id, null);
     }
 
     @Override
-    public Invoice findById(Long id) throws Exception {
-        return invoiceRepository.findById(id)
+    public Invoice findById(Long id, User currentUser) throws Exception {
+        Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new Exception("Khong tim thay hoa don voi id " + id));
+        if (currentUser != null && !userService.isAdmin(currentUser)) {
+            if (!userService.canAccessInvoice(currentUser, id)) {
+                throw new Exception("Ban khong co quyen truy cap hoa don nay");
+            }
+        }
+        return invoice;
     }
 
     @Override
@@ -250,8 +251,27 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
+    public List<Invoice> findAll(User currentUser) {
+        if (currentUser == null || userService.isAdmin(currentUser)) {
+            return findAll();
+        }
+        Set<Long> allowedMotelIds = userService.getAssignedMotelIds(currentUser);
+        return invoiceRepository.findAll().stream()
+                .filter(i -> i.getHopDong() != null
+                        && i.getHopDong().getPhongTro() != null
+                        && i.getHopDong().getPhongTro().getNhaTro() != null
+                        && allowedMotelIds.contains(i.getHopDong().getPhongTro().getNhaTro().getId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Invoice> findByHopDongId(Long hopDongId) {
-        List<Invoice> all = invoiceRepository.findAll();
+        return findByHopDongId(hopDongId, null);
+    }
+
+    @Override
+    public List<Invoice> findByHopDongId(Long hopDongId, User currentUser) {
+        List<Invoice> all = findAll(currentUser);
         return all.stream()
                 .filter(i -> i.getHopDong() != null && i.getHopDong().getId().equals(hopDongId))
                 .collect(Collectors.toList());
@@ -259,17 +279,47 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     public List<Invoice> findByTrangThai(InvoiceStatus trangThai) {
-        return invoiceRepository.findByTrangThai(trangThai);
+        return findByTrangThai(trangThai, null);
+    }
+
+    @Override
+    public List<Invoice> findByTrangThai(InvoiceStatus trangThai, User currentUser) {
+        return findAll(currentUser).stream()
+                .filter(i -> trangThai == null || i.getTrangThai() == trangThai)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<Invoice> search(String keyword, InvoiceStatus trangThai) {
-        List<Invoice> invoices = invoiceRepository.findAll();
+        return search(keyword, trangThai, null);
+    }
+
+    @Override
+    public List<Invoice> search(String keyword, InvoiceStatus trangThai, User currentUser) {
+        List<Invoice> invoices = findAll(currentUser);
         return invoices.stream()
                 .filter(i -> keyword == null || keyword.isBlank()
                         || (i.getMaHoaDon() != null && i.getMaHoaDon().toLowerCase().contains(keyword.toLowerCase())))
                 .filter(i -> trangThai == null || i.getTrangThai() == trangThai)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public void deleteInvoice(Long id) throws Exception {
+        deleteInvoice(id, null);
+    }
+
+    @Override
+    @Transactional
+    public void deleteInvoice(Long id, User currentUser) throws Exception {
+        Invoice invoice = findById(id, currentUser);
+
+        if (invoice.getTrangThai() != InvoiceStatus.CHUA_THANH_TOAN) {
+            throw new Exception("Hoa don da thanh toan, khong the xoa");
+        }
+
+        invoiceServiceItemRepository.deleteByHoaDonId(invoice.getId());
+        invoiceRepository.delete(invoice);
     }
 
     @Override

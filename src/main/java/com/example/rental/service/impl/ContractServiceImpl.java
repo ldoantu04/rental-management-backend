@@ -15,6 +15,7 @@ import com.example.rental.repository.ContractServiceItemRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
 import com.example.rental.service.ContractService;
+import com.example.rental.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +34,7 @@ public class ContractServiceImpl implements ContractService {
     private final TenantRepository tenantRepository;
     private final RoomRepository roomRepository;
     private final ContractServiceItemRepository contractServiceItemRepository;
+    private final UserService userService;
 
     @Override
     @Transactional
@@ -176,10 +179,15 @@ public class ContractServiceImpl implements ContractService {
         return saved;
     }
 
-    @Override
     @Transactional
     public void cancelContract(Long id, String lyDoHuy) throws Exception {
-        Contract contract = findById(id);
+        cancelContract(id, lyDoHuy, null);
+    }
+
+    @Override
+    @Transactional
+    public void cancelContract(Long id, String lyDoHuy, User currentUser) throws Exception {
+        Contract contract = findById(id, currentUser);
         contract.setTrangThai(ContractStatus.DA_HUY);
         if (lyDoHuy != null && !lyDoHuy.trim().isEmpty()) {
             contract.setLyDoHuy(lyDoHuy);
@@ -259,8 +267,19 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public Contract findById(Long id) throws Exception {
-        return contractRepository.findById(id)
+        return findById(id, null);
+    }
+
+    @Override
+    public Contract findById(Long id, User currentUser) throws Exception {
+        Contract contract = contractRepository.findById(id)
                 .orElseThrow(() -> new Exception("Khong tim thay hop dong voi id " + id));
+        if (currentUser != null && !userService.isAdmin(currentUser)) {
+            if (!userService.canAccessContract(currentUser, id)) {
+                throw new Exception("Ban khong co quyen truy cap hop dong nay");
+            }
+        }
+        return contract;
     }
 
     @Override
@@ -269,9 +288,27 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    public List<Contract> findAll(User currentUser) {
+        if (currentUser == null || userService.isAdmin(currentUser)) {
+            return findAll();
+        }
+        Set<Long> allowedMotelIds = userService.getAssignedMotelIds(currentUser);
+        return contractRepository.findAllByOrderByNgayTaoDesc().stream()
+                .filter(c -> c.getPhongTro() != null
+                        && c.getPhongTro().getNhaTro() != null
+                        && allowedMotelIds.contains(c.getPhongTro().getNhaTro().getId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Contract> findByTrangThai(ContractStatus trangThai) {
-        return contractRepository.findAll().stream()
-                .filter(c -> c.getTrangThai() == trangThai)
+        return findByTrangThai(trangThai, null);
+    }
+
+    @Override
+    public List<Contract> findByTrangThai(ContractStatus trangThai, User currentUser) {
+        return findAll(currentUser).stream()
+                .filter(c -> trangThai == null || c.getTrangThai() == trangThai)
                 .collect(Collectors.toList());
     }
 

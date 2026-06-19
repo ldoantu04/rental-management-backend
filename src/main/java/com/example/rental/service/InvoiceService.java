@@ -15,12 +15,18 @@ public interface InvoiceService {
     Invoice updateInvoice(Long id, InvoiceRequest req) throws Exception;
     Invoice updateInvoice(Long id, InvoiceRequest req, User nguoiSua) throws Exception;
     void deleteInvoice(Long id) throws Exception;
+    void deleteInvoice(Long id, User currentUser) throws Exception;
     Invoice findById(Long id) throws Exception;
+    Invoice findById(Long id, User currentUser) throws Exception;
     Invoice findByMaHoaDon(String maHoaDon) throws Exception;
     List<Invoice> findAll();
+    List<Invoice> findAll(User currentUser);
     List<Invoice> findByHopDongId(Long hopDongId);
+    List<Invoice> findByHopDongId(Long hopDongId, User currentUser);
     List<Invoice> findByTrangThai(InvoiceStatus trangThai);
+    List<Invoice> findByTrangThai(InvoiceStatus trangThai, User currentUser);
     List<Invoice> search(String keyword, InvoiceStatus trangThai);
+    List<Invoice> search(String keyword, InvoiceStatus trangThai, User currentUser);
     Invoice markAsPaid(Long id) throws Exception;
     Invoice markAsPaid(Long id, User nguoiThanhToan) throws Exception;
     Invoice findLatestByHopDongId(Long hopDongId);
