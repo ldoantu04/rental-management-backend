@@ -16,6 +16,9 @@ public class ContractRequest {
     private LocalDate ngayKetThuc;
     private BigDecimal tienCoc;
     private BigDecimal giaThue;
+    private BigDecimal giaDien;
+    private BigDecimal giaNuoc;
+    private com.example.rental.domain.WaterCalculationType kieuTinhNuoc;
     private Integer chuKyThanhToan;
     private Integer ngayThanhToan;
     private String dieuKhoan;

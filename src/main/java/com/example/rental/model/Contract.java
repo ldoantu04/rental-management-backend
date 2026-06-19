@@ -1,6 +1,7 @@
 package com.example.rental.model;
 
 import com.example.rental.domain.ContractStatus;
+import com.example.rental.domain.WaterCalculationType;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -38,6 +39,17 @@ public class Contract {
     private BigDecimal tienCoc;
 
     private BigDecimal giaThue;
+
+    /** Default electricity price (VND / kWh) agreed in this contract. */
+    @Column(precision = 18, scale = 2)
+    private BigDecimal giaDien;
+
+    /** Default water price (VND / m3 or VND / month depending on kieuTinhNuoc). */
+    @Column(precision = 18, scale = 2)
+    private BigDecimal giaNuoc;
+
+    @Enumerated(EnumType.STRING)
+    private WaterCalculationType kieuTinhNuoc = WaterCalculationType.CHI_SO;
 
     private Integer chuKyThanhToan;
 

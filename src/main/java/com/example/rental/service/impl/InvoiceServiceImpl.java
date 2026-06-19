@@ -23,6 +23,7 @@ import com.example.rental.repository.TransactionRepository;
 import com.example.rental.service.EmailService;
 import com.example.rental.service.InvoiceService;
 import com.example.rental.service.NotificationService;
+import com.example.rental.service.utils.InvoicePricingEngine;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -72,25 +74,24 @@ public class InvoiceServiceImpl implements InvoiceService {
         long count = invoiceRepository.count();
         String maHoaDon = "HD" + String.format("%03d", count + 1);
 
-        BigDecimal tongTien = req.getTongTien() != null
-                ? req.getTongTien()
-                : computeTotal(contract, req);
+        Invoice previous = findLatestByHopDongId(contract.getId());
 
         Invoice invoice = new Invoice();
         invoice.setMaHoaDon(maHoaDon);
         invoice.setHopDong(contract);
         invoice.setKyHoaDon(req.getKyHoaDon());
-        invoice.setChiSoDienCu(req.getChiSoDienCu());
+        invoice.setChiSoDienCu(req.getChiSoDienCu() != null
+                ? req.getChiSoDienCu()
+                : (previous != null ? previous.getChiSoDienMoi() : null));
         invoice.setChiSoDienMoi(req.getChiSoDienMoi());
-        invoice.setGiaDien(req.getGiaDien());
-        invoice.setChiSoNuocCu(req.getChiSoNuocCu());
+        invoice.setGiaDien(InvoicePricingEngine.resolveElectricPrice(contract, previous, req));
+        invoice.setChiSoNuocCu(req.getChiSoNuocCu() != null
+                ? req.getChiSoNuocCu()
+                : (previous != null ? previous.getChiSoNuocMoi() : null));
         invoice.setChiSoNuocMoi(req.getChiSoNuocMoi());
-        invoice.setGiaNuoc(req.getGiaNuoc());
-        if (req.getKieuTinhNuoc() != null) {
-            invoice.setKieuTinhNuoc(req.getKieuTinhNuoc());
-        }
-        invoice.setTienPhong(req.getTienPhong());
-        invoice.setTongTien(tongTien);
+        invoice.setGiaNuoc(InvoicePricingEngine.resolveWaterPrice(contract, previous, req));
+        invoice.setKieuTinhNuoc(InvoicePricingEngine.resolveWaterCalc(contract, previous, req));
+        invoice.setTienPhong(InvoicePricingEngine.resolveRoomPrice(contract, previous));
         invoice.setHanThanhToan(req.getHanThanhToan());
         invoice.setTrangThai(InvoiceStatus.CHUA_THANH_TOAN);
         invoice.setGhiChu(req.getGhiChu());
@@ -99,10 +100,34 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setNgaySua(LocalDateTime.now());
 
         Invoice saved = invoiceRepository.save(invoice);
-        syncServiceItems(saved, req.getDanhSachDichVu());
-        sendInvoiceNotification(saved);
-        notificationService.notifyInvoiceCreated(nguoiTao, saved.getId());
-        return saved;
+
+        // Build line items from contract (room / electric / water / services) and the request.
+        List<com.example.rental.dto.InvoiceServiceItemRequest> merged = new ArrayList<>();
+        for (com.example.rental.model.InvoiceServiceItem it
+                : InvoicePricingEngine.buildItems(saved, req, contract, previous)) {
+            com.example.rental.dto.InvoiceServiceItemRequest r = new com.example.rental.dto.InvoiceServiceItemRequest();
+            r.setTenDichVu(it.getTenDichVu());
+            r.setKieuTinh(it.getKieuTinh());
+            r.setSoLuong(it.getSoLuong());
+            r.setDonGia(it.getDonGia());
+            r.setLaTuHopDong(it.getLaTuHopDong());
+            merged.add(r);
+        }
+        syncServiceItems(saved, merged);
+
+        // Total = sum of line items. Single source of truth.
+        BigDecimal total = BigDecimal.ZERO;
+        if (saved.getDanhSachDichVu() != null) {
+            for (com.example.rental.model.InvoiceServiceItem it : saved.getDanhSachDichVu()) {
+                if (it.getThanhTien() != null) total = total.add(it.getThanhTien());
+            }
+        }
+        saved.setTongTien(total);
+        Invoice result = invoiceRepository.save(saved);
+
+        sendInvoiceNotification(result);
+        notificationService.notifyInvoiceCreated(nguoiTao, result.getId());
+        return result;
     }
 
     @Override
@@ -120,55 +145,49 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new Exception("Hoa don da thanh toan, khong the cap nhat");
         }
 
-        if (req.getKyHoaDon() != null) {
-            invoice.setKyHoaDon(req.getKyHoaDon());
-        }
-        if (req.getChiSoDienCu() != null) {
-            invoice.setChiSoDienCu(req.getChiSoDienCu());
-        }
-        if (req.getChiSoDienMoi() != null) {
-            invoice.setChiSoDienMoi(req.getChiSoDienMoi());
-        }
-        if (req.getGiaDien() != null) {
-            invoice.setGiaDien(req.getGiaDien());
-        }
-        if (req.getChiSoNuocCu() != null) {
-            invoice.setChiSoNuocCu(req.getChiSoNuocCu());
-        }
-        if (req.getChiSoNuocMoi() != null) {
-            invoice.setChiSoNuocMoi(req.getChiSoNuocMoi());
-        }
-        if (req.getGiaNuoc() != null) {
-            invoice.setGiaNuoc(req.getGiaNuoc());
-        }
-        if (req.getKieuTinhNuoc() != null) {
-            invoice.setKieuTinhNuoc(req.getKieuTinhNuoc());
-        }
-        if (req.getTienPhong() != null) {
-            invoice.setTienPhong(req.getTienPhong());
-        }
         Contract contract = invoice.getHopDong();
-        if (req.getTongTien() != null) {
-            invoice.setTongTien(req.getTongTien());
-        } else {
-            invoice.setTongTien(computeTotal(contract, req));
-        }
-        if (req.getHanThanhToan() != null) {
-            invoice.setHanThanhToan(req.getHanThanhToan());
-        }
-        if (req.getTrangThai() != null) {
-            invoice.setTrangThai(req.getTrangThai());
-        }
-        if (req.getGhiChu() != null) {
-            invoice.setGhiChu(req.getGhiChu());
-        }
+        Invoice previous = findLatestByHopDongId(contract.getId());
+
+        if (req.getKyHoaDon() != null) invoice.setKyHoaDon(req.getKyHoaDon());
+        if (req.getChiSoDienCu() != null) invoice.setChiSoDienCu(req.getChiSoDienCu());
+        if (req.getChiSoDienMoi() != null) invoice.setChiSoDienMoi(req.getChiSoDienMoi());
+        invoice.setGiaDien(InvoicePricingEngine.resolveElectricPrice(contract, previous, req));
+        if (req.getChiSoNuocCu() != null) invoice.setChiSoNuocCu(req.getChiSoNuocCu());
+        if (req.getChiSoNuocMoi() != null) invoice.setChiSoNuocMoi(req.getChiSoNuocMoi());
+        invoice.setGiaNuoc(InvoicePricingEngine.resolveWaterPrice(contract, previous, req));
+        invoice.setKieuTinhNuoc(InvoicePricingEngine.resolveWaterCalc(contract, previous, req));
+        invoice.setTienPhong(req.getTienPhong() != null
+                ? req.getTienPhong()
+                : InvoicePricingEngine.resolveRoomPrice(contract, previous));
+        if (req.getHanThanhToan() != null) invoice.setHanThanhToan(req.getHanThanhToan());
+        if (req.getTrangThai() != null) invoice.setTrangThai(req.getTrangThai());
+        if (req.getGhiChu() != null) invoice.setGhiChu(req.getGhiChu());
         invoice.setNgaySua(LocalDateTime.now());
 
         Invoice saved = invoiceRepository.save(invoice);
-        if (req.getDanhSachDichVu() != null) {
-            syncServiceItems(saved, req.getDanhSachDichVu());
+
+        // Rebuild line items so totals stay consistent with the new meter readings.
+        List<com.example.rental.dto.InvoiceServiceItemRequest> merged = new ArrayList<>();
+        for (com.example.rental.model.InvoiceServiceItem it
+                : InvoicePricingEngine.buildItems(saved, req, contract, previous)) {
+            com.example.rental.dto.InvoiceServiceItemRequest r = new com.example.rental.dto.InvoiceServiceItemRequest();
+            r.setTenDichVu(it.getTenDichVu());
+            r.setKieuTinh(it.getKieuTinh());
+            r.setSoLuong(it.getSoLuong());
+            r.setDonGia(it.getDonGia());
+            r.setLaTuHopDong(it.getLaTuHopDong());
+            merged.add(r);
         }
-        return saved;
+        syncServiceItems(saved, merged);
+
+        BigDecimal total = BigDecimal.ZERO;
+        if (saved.getDanhSachDichVu() != null) {
+            for (com.example.rental.model.InvoiceServiceItem it : saved.getDanhSachDichVu()) {
+                if (it.getThanhTien() != null) total = total.add(it.getThanhTien());
+            }
+        }
+        saved.setTongTien(total);
+        return invoiceRepository.save(saved);
     }
 
     private void syncServiceItems(Invoice invoice, List<InvoiceServiceItemRequest> requests) {
@@ -312,76 +331,19 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     public BigDecimal computeElectricAmount(Contract contract, InvoiceRequest req) {
-        if (req.getChiSoDienMoi() == null || req.getChiSoDienCu() == null || req.getGiaDien() == null) {
-            return BigDecimal.ZERO;
-        }
-        int diff = Math.max(req.getChiSoDienMoi() - req.getChiSoDienCu(), 0);
-        return req.getGiaDien().multiply(BigDecimal.valueOf(diff));
+        return InvoicePricingEngine.computeElectric(req, contract);
     }
 
     public BigDecimal computeWaterAmount(Contract contract, InvoiceRequest req) {
-        if (req.getGiaNuoc() == null) return BigDecimal.ZERO;
-        WaterCalculationType type = req.getKieuTinhNuoc() != null
-                ? req.getKieuTinhNuoc()
-                : (contract != null ? WaterCalculationType.CHI_SO : WaterCalculationType.CHI_SO);
-        return switch (type) {
-            case THEO_PHONG -> req.getGiaNuoc();
-            case THEO_NGUOI -> {
-                int people = countPeopleInRoom(contract);
-                yield req.getGiaNuoc().multiply(BigDecimal.valueOf(Math.max(people, 1)));
-            }
-            case CHI_SO -> {
-                if (req.getChiSoNuocMoi() == null || req.getChiSoNuocCu() == null) {
-                    yield BigDecimal.ZERO;
-                }
-                int diff = Math.max(req.getChiSoNuocMoi() - req.getChiSoNuocCu(), 0);
-                yield req.getGiaNuoc().multiply(BigDecimal.valueOf(diff));
-            }
-        };
-    }
-
-    private int countPeopleInRoom(Contract contract) {
-        if (contract == null || contract.getPhongTro() == null) return 1;
-        Room room = contract.getPhongTro();
-        int count = 0;
-        try {
-            if (room.getSoNguoi() != null && room.getSoNguoi() > 0) {
-                count = room.getSoNguoi();
-            }
-        } catch (Exception ignored) {
-        }
-        if (count == 0) {
-            Tenant tenant = contract.getKhachThue();
-            if (tenant != null) {
-                int roommates = tenant.getDanhSachNguoiOCung() != null ? tenant.getDanhSachNguoiOCung().size() : 0;
-                count = 1 + roommates;
-            }
-        }
-        return Math.max(count, 1);
+        return InvoicePricingEngine.computeWater(req, contract);
     }
 
     public BigDecimal computeServiceAmount(InvoiceRequest req) {
-        if (req.getDanhSachDichVu() == null || req.getDanhSachDichVu().isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal total = BigDecimal.ZERO;
-        for (InvoiceServiceItemRequest item : req.getDanhSachDichVu()) {
-            if (item.getDonGia() == null) continue;
-            BigDecimal soLuong = item.getSoLuong() != null ? item.getSoLuong() : BigDecimal.ONE;
-            total = total.add(item.getDonGia().multiply(soLuong));
-        }
-        return total;
+        return InvoicePricingEngine.computeServices(req);
     }
 
     public BigDecimal computeTotal(Contract contract, InvoiceRequest req) {
-        BigDecimal tong = BigDecimal.ZERO;
-        if (req.getTienPhong() != null) {
-            tong = tong.add(req.getTienPhong());
-        }
-        tong = tong.add(computeElectricAmount(contract, req));
-        tong = tong.add(computeWaterAmount(contract, req));
-        tong = tong.add(computeServiceAmount(req));
-        return tong;
+        return InvoicePricingEngine.computeTotal(null, req, contract);
     }
 
     public int countPeopleByRoomId(Long roomId) {

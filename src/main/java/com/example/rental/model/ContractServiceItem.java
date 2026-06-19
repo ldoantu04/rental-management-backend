@@ -26,5 +26,8 @@ public class ContractServiceItem {
 
     private BigDecimal donGia;
 
+    /** Quantity consumed (1 for flat-rate services). Defaults to 1 when null. */
+    private BigDecimal soLuong;
+
     private Boolean laDichVuBoSung = false;
 }
