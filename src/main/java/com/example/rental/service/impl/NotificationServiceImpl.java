@@ -10,6 +10,7 @@ import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.NotificationRepository;
+import com.example.rental.service.EmailTemplateService;
 import com.example.rental.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,9 +22,11 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -40,6 +43,10 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final ContractRepository contractRepository;
     private final InvoiceRepository invoiceRepository;
+    private final EmailTemplateService emailTemplateService;
+
+    private static final String TEMPLATE_CONTRACT_EXPIRY = "HET_HAN_HD";
+    private static final String TEMPLATE_OVERDUE = "QUA_HAN";
 
     @Override
     @Transactional
@@ -134,6 +141,17 @@ public class NotificationServiceImpl implements NotificationService {
 
                 createNotification(nguoiDung, NotificationType.HOP_DONG_HET_HAN,
                         tieuDe, noiDung, contract.getId());
+
+                com.example.rental.model.Tenant tenant = contract.getKhachThue();
+                if (tenant != null && tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+                    com.example.rental.model.Room room = contract.getPhongTro();
+                    java.util.Map<String, String> vars = new java.util.HashMap<>();
+                    vars.put("tenant_name", tenantName);
+                    vars.put("room", roomLabel);
+                    vars.put("property", (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-");
+                    vars.put("contract_end_date", endDate.format(DATE_FMT));
+                    emailTemplateService.sendWithTemplate(TEMPLATE_CONTRACT_EXPIRY, tenant.getEmail(), vars);
+                }
             }
         } catch (Exception e) {
             log.warn("Loi dong bo thong bao hop dong het han: {}", e.getMessage());
@@ -180,6 +198,20 @@ public class NotificationServiceImpl implements NotificationService {
 
                 createNotification(nguoiDung, NotificationType.HOA_DON,
                         tieuDe, noiDung, invoice.getId());
+
+                com.example.rental.model.Tenant tenant = contract != null ? contract.getKhachThue() : null;
+                if (tenant != null && tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+                    com.example.rental.model.Room room = contract.getPhongTro();
+                    java.util.Map<String, String> vars = new java.util.HashMap<>();
+                    vars.put("tenant_name", tenantName);
+                    vars.put("room", roomLabel);
+                    vars.put("property", (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-");
+                    vars.put("amount", formatMoney(invoice.getTongTien()));
+                    vars.put("due_date", invoice.getHanThanhToan().format(DATE_FMT));
+                    vars.put("overdue_days", String.valueOf(daysOverdue));
+                    vars.put("late_fee", formatMoney(BigDecimal.ZERO));
+                    emailTemplateService.sendWithTemplate(TEMPLATE_OVERDUE, tenant.getEmail(), vars);
+                }
             }
         } catch (Exception e) {
             log.warn("Loi dong bo thong bao hoa don qua han: {}", e.getMessage());

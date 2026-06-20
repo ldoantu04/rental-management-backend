@@ -20,12 +20,11 @@ import com.example.rental.repository.InvoiceServiceItemRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
 import com.example.rental.repository.TransactionRepository;
-import com.example.rental.service.EmailService;
+import com.example.rental.service.EmailTemplateService;
 import com.example.rental.service.InvoiceService;
 import com.example.rental.service.NotificationService;
 import com.example.rental.service.UserService;
 import com.example.rental.service.utils.InvoicePricingEngine;
-import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +36,7 @@ import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -53,10 +53,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final TenantRepository tenantRepository;
     private final RoomRepository roomRepository;
     private final TransactionRepository transactionRepository;
-    private final EmailService emailService;
     private final VNPayConfig vnPayConfig;
+    private final EmailTemplateService emailTemplateService;
     private final NotificationService notificationService;
     private final UserService userService;
+
+    private static final String TEMPLATE_PAYMENT_REMINDER = "NHAC_THANH_TOAN";
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("MM/yyyy");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -434,37 +436,21 @@ public class InvoiceServiceImpl implements InvoiceService {
                 return;
             }
 
-            String roomLabel = room != null
-                    ? room.getMaPhong() + (room.getNhaTro() != null ? " - " + room.getNhaTro().getTenTro() : "")
-                    : "-";
-            String tenantName = tenant.getHoTen() != null ? tenant.getHoTen() : "Quy khach";
-            String month = invoice.getKyHoaDon() != null ? invoice.getKyHoaDon().format(MONTH_FMT) : "-";
-            String dueDate = invoice.getHanThanhToan() != null ? invoice.getHanThanhToan().format(DATE_FMT) : "-";
-            String total = invoice.getTongTien() != null ? MONEY_FMT.format(invoice.getTongTien()) + " VND" : "0 VND";
-            String viewUrl = vnPayConfig.getPublicBaseUrl() + "/api/invoices/" + invoice.getId() + "/pdf";
-            String payUrl = vnPayConfig.getPublicBaseUrl() + "/pay/" + invoice.getMaHoaDon();
+            String propertyName = (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-";
+            String roomLabel = room != null ? room.getMaPhong() : "-";
 
-            String html = String.format(
-                    "<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #111827;\">"
-                            + "<h2 style=\"color: #80001C; margin-bottom: 8px;\">SmartRental</h2>"
-                            + "<p style=\"color: #6B7280; margin-top: 0;\">He thong quan ly nha tro thong minh</p>"
-                            + "<hr style=\"border: 0; border-top: 1px solid #E5E7EB; margin: 16px 0;\"/>"
-                            + "<p>Xin chao <b>%s</b>,</p>"
-                            + "<p>Hoa don cho thang <b>%s</b> cua phong <b>%s</b> co han thanh toan vao ngay <b>%s</b> voi tong tien <b>%s</b>.</p>"
-                            + "<p>Vui long truy cap cac lien ket ben duoi de xem chi tiet va thanh toan hoa don:</p>"
-                            + "<p style=\"margin: 16px 0;\"><a href=\"%s\" style=\"display:inline-block;padding:10px 18px;background:#1F2937;color:#fff;text-decoration:none;border-radius:8px;margin-right:8px;\">Lien ket xem hoa don</a>"
-                            + "<a href=\"%s\" style=\"display:inline-block;padding:10px 18px;background:#80001C;color:#fff;text-decoration:none;border-radius:8px;\">Thanh toan ngay</a></p>"
-                            + "<p style=\"color: #6B7280; font-size: 13px;\">Ma hoa don: <b>%s</b></p>"
-                            + "<hr style=\"border: 0; border-top: 1px solid #E5E7EB; margin: 24px 0 12px;\"/>"
-                            + "<p style=\"color: #6B7280; font-size: 12px;\">Tran trong,<br/>Doi ngu SmartRental</p>"
-                            + "</div>",
-                    tenantName, month, roomLabel, dueDate, total, viewUrl, payUrl, invoice.getMaHoaDon()
-            );
+            java.util.Map<String, String> vars = new java.util.HashMap<>();
+            vars.put("tenant_name", tenant.getHoTen() != null ? tenant.getHoTen() : "Quy khach");
+            vars.put("room", roomLabel);
+            vars.put("property", propertyName);
+            vars.put("month", invoice.getKyHoaDon() != null ? invoice.getKyHoaDon().format(MONTH_FMT) : "-");
+            vars.put("due_date", invoice.getHanThanhToan() != null ? invoice.getHanThanhToan().format(DATE_FMT) : "-");
+            vars.put("amount", invoice.getTongTien() != null ? MONEY_FMT.format(invoice.getTongTien()) : "0");
+            vars.put("invoice_code", invoice.getMaHoaDon() != null ? invoice.getMaHoaDon() : "");
+            vars.put("invoice_url", vnPayConfig.getPublicBaseUrl() + "/api/invoices/" + invoice.getId() + "/pdf");
+            vars.put("payment_url", vnPayConfig.getPublicBaseUrl() + "/pay/" + invoice.getMaHoaDon());
 
-            String subject = "[SmartRental] Hoa don tien thue " + month + " - " + invoice.getMaHoaDon();
-            emailService.sendInvoiceEmail(tenant.getEmail(), subject, html);
-        } catch (MessagingException e) {
-            log.error("Loi gui email hoa don: {}", e.getMessage());
+            emailTemplateService.sendWithTemplate(TEMPLATE_PAYMENT_REMINDER, tenant.getEmail(), vars);
         } catch (Exception e) {
             log.error("Loi khi gui thong bao hoa don: {}", e.getMessage());
         }
