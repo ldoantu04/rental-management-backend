@@ -1,6 +1,6 @@
 package com.example.rental.service.impl;
 
-import com.example.rental.dto.EmailTemplateDTO;
+import com.example.rental.dto.EmailTemplateResponse;
 import com.example.rental.model.EmailTemplate;
 import com.example.rental.repository.EmailTemplateRepository;
 import com.example.rental.service.EmailService;
@@ -70,21 +70,21 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
     }
 
     @Override
-    public List<EmailTemplateDTO> getAll() {
+    public List<EmailTemplateResponse> getAll() {
         return emailTemplateRepository.findAllByOrderByIdAsc().stream()
                 .map(toDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public EmailTemplateDTO getById(Long id) {
+    public EmailTemplateResponse getById(Long id) {
         EmailTemplate template = emailTemplateRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Khong tim thay mau email voi id " + id));
         return toDTO.apply(template);
     }
 
     @Override
-    public EmailTemplateDTO getByMaMau(String maMau) {
+    public EmailTemplateResponse getByMaMau(String maMau) {
         EmailTemplate template = emailTemplateRepository.findByMaMau(maMau)
                 .orElseThrow(() -> new RuntimeException("Khong tim thay mau email: " + maMau));
         return toDTO.apply(template);
@@ -92,7 +92,7 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
 
     @Override
     @Transactional
-    public EmailTemplateDTO update(Long id, EmailTemplateDTO dto) {
+    public EmailTemplateResponse update(Long id, EmailTemplateResponse dto) {
         if (dto.getTieuDe() == null || dto.getTieuDe().isBlank()) {
             throw new IllegalArgumentException("Tieu de khong duoc de trong");
         }
@@ -110,7 +110,7 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
 
     @Override
     @Transactional
-    public EmailTemplateDTO updateEnabled(Long id, Boolean batBuoc) {
+    public EmailTemplateResponse updateEnabled(Long id, Boolean batBuoc) {
         EmailTemplate template = emailTemplateRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Khong tim thay mau email voi id " + id));
         template.setBatBuoc(batBuoc);
@@ -158,7 +158,7 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
                 + "</pre></div>";
     }
 
-    private final java.util.function.Function<EmailTemplate, EmailTemplateDTO> toDTO = t -> EmailTemplateDTO.builder()
+    private final java.util.function.Function<EmailTemplate, EmailTemplateResponse> toDTO = t -> EmailTemplateResponse.builder()
             .id(t.getId())
             .maMau(t.getMaMau())
             .tenMau(t.getTenMau())

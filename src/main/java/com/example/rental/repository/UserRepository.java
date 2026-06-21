@@ -20,8 +20,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.assignedMotels WHERE u.email = :email")
     User findByEmailWithMotels(@Param("email") String email);
 
-    List<User> findByHoTenContainingIgnoreCaseOrEmailContainingIgnoreCaseOrSdtContaining(
-            String hoTen, String email, String sdt);
     List<User> findAllByOrderByNgayTaoDesc();
 
     @Query("SELECT DISTINCT u FROM User u JOIN u.assignedMotels m WHERE m.id = :motelId")

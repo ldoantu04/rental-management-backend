@@ -10,5 +10,9 @@ public class InvoiceServiceItemRequest {
     private String kieuTinh;
     private BigDecimal soLuong;
     private BigDecimal donGia;
+    private BigDecimal thanhTien;
     private Boolean laTuHopDong;
+    private Integer chiSoDau;
+    private Integer chiSoCuoi;
+    private String loaiDichVu; // DIEN, NUOC, PHONG, DICH_VU
 }

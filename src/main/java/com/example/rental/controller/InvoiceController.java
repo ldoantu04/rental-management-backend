@@ -129,4 +129,16 @@ public class InvoiceController {
         headers.setCacheControl("must-revalidate, no-store");
         return new ResponseEntity<>(pdf, headers, 200);
     }
+
+    @GetMapping("/public/{maHoaDon}/pdf")
+    public ResponseEntity<byte[]> viewInvoicePdfPublic(@PathVariable String maHoaDon) throws Exception {
+        Invoice invoice = invoiceService.findByMaHoaDon(maHoaDon);
+        byte[] pdf = invoicePdfService.generate(invoice);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        String safeCode = invoice.getMaHoaDon() == null ? "hoa-don" : invoice.getMaHoaDon().replaceAll("[^\\w\\-]", "_");
+        headers.setContentDispositionFormData("inline", safeCode + ".pdf");
+        headers.setCacheControl("no-store, no-cache");
+        return new ResponseEntity<>(pdf, headers, 200);
+    }
 }

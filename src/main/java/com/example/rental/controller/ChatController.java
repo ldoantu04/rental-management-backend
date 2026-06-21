@@ -2,8 +2,8 @@ package com.example.rental.controller;
 
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.ChatConfirmRequest;
-import com.example.rental.dto.ChatConversationDto;
-import com.example.rental.dto.ChatMessageDto;
+import com.example.rental.dto.ChatConversationResponse;
+import com.example.rental.dto.ChatMessageResponse;
 import com.example.rental.dto.ChatSendRequest;
 import com.example.rental.dto.ChatSendResponse;
 import com.example.rental.model.User;
@@ -40,23 +40,23 @@ public class ChatController {
     }
 
     @PostMapping("/confirm")
-    public ResponseEntity<ChatMessageDto> confirmAction(
+    public ResponseEntity<ChatMessageResponse> confirmAction(
             @RequestBody ChatConfirmRequest req,
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findByJwt(jwt);
-        ChatMessageDto response = chatService.confirmAction(req, user);
+        ChatMessageResponse response = chatService.confirmAction(req, user);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<List<ChatConversationDto>> listConversations(
+    public ResponseEntity<List<ChatConversationResponse>> listConversations(
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findByJwt(jwt);
         return ResponseEntity.ok(chatService.listConversations(user));
     }
 
     @GetMapping("/conversations/{hoiThoaiId}/messages")
-    public ResponseEntity<List<ChatMessageDto>> getMessages(
+    public ResponseEntity<List<ChatMessageResponse>> getMessages(
             @PathVariable Long hoiThoaiId,
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findByJwt(jwt);

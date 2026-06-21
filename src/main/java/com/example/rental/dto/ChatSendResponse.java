@@ -7,7 +7,7 @@ import java.util.List;
 @Data
 public class ChatSendResponse {
     private Long hoiThoaiId;
-    private ChatMessageDto tinNhanNguoiDung;
-    private ChatMessageDto tinNhanTroLy;
-    private List<ChatMessageDto> toanBoTinNhan;
+    private ChatMessageResponse tinNhanNguoiDung;
+    private ChatMessageResponse tinNhanTroLy;
+    private List<ChatMessageResponse> toanBoTinNhan;
 }

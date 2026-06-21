@@ -15,6 +15,7 @@ import com.example.rental.repository.TransactionRepository;
 import com.example.rental.repository.UserRepository;
 import com.example.rental.service.EmailTemplateService;
 import com.example.rental.service.NotificationService;
+import com.example.rental.service.SystemSettingService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,7 @@ public class PaymentService {
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final EmailTemplateService emailTemplateService;
+    private final SystemSettingService systemSettingService;
 
     private static final String TEMPLATE_PAYMENT_CONFIRM = "XAC_NHAN_TT";
     private static final java.text.NumberFormat MONEY_FMT =
@@ -177,7 +179,9 @@ public class PaymentService {
         log.info("IPN thanh cong: hoa don {} da duoc cap nhat PAID", invoice.getMaHoaDon());
         User owner = resolveOwner(invoice);
         notificationService.notifyInvoicePaid(owner, invoice.getId(), "VNPay");
-        sendPaymentConfirmationEmail(invoice, "VNPay");
+        if (systemSettingService.isAutoSendPaymentConfirmationEmail()) {
+            sendPaymentConfirmationEmail(invoice, "VNPay");
+        }
     }
 
     @Transactional

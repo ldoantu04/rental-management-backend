@@ -234,7 +234,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private boolean isAdminLevel(UserRole role) {
-        return role == UserRole.ADMIN || role == UserRole.QUAN_LY;
+        return role == UserRole.QUAN_LY;
     }
 
     private boolean isAdminLevel(User user) {

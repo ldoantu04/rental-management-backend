@@ -87,7 +87,7 @@ public class MotelServiceImpl implements MotelService {
 
     @Override
     public List<Motel> findAll() {
-        return motelRepository.findAllByOrderByNguoiTaoDesc();
+        return motelRepository.findAllOrderByIdDesc();
     }
 
     @Override

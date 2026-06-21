@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class DashboardFilterDTO {
+public class DashboardFilterResponse {
     private List<Integer> years;
     private List<MotelOption> motels;
 

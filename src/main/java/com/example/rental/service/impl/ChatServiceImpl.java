@@ -12,8 +12,8 @@ import com.example.rental.service.ai.ChatActionService;
 import com.example.rental.service.ai.PlannerService;
 import com.example.rental.service.ai.dto.PlannerResult;
 import com.example.rental.dto.ChatConfirmRequest;
-import com.example.rental.dto.ChatConversationDto;
-import com.example.rental.dto.ChatMessageDto;
+import com.example.rental.dto.ChatConversationResponse;
+import com.example.rental.dto.ChatMessageResponse;
 import com.example.rental.dto.ChatSendRequest;
 import com.example.rental.dto.ChatSendResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -54,7 +54,7 @@ public class ChatServiceImpl implements ChatService {
             throw new IllegalArgumentException("Noi dung tin nhan khong duoc de trong");
         }
         ChatConversation conversation = getOrCreateConversation(req.getHoiThoaiId(), user);
-        saveMessage(conversation, ChatMessageRole.USER, req.getNoiDung(), null, null, null, false, null);
+        saveMessage(conversation, ChatMessageRole.NGUOI_DUNG, req.getNoiDung(), null, null, null, false, null);
 
         PlannerResult result;
         try {
@@ -70,7 +70,7 @@ public class ChatServiceImpl implements ChatService {
                 JsonNode payload = result.getPayload() == null ? objectMapper.createObjectNode() : result.getPayload();
                 assistantMessage = saveMessage(
                         conversation,
-                        ChatMessageRole.ASSISTANT,
+                        ChatMessageRole.TRO_LY,
                         buildConfirmationText(result.getHanhDong(), result.getMoTaNgan()),
                         null,
                         result.getHanhDong(),
@@ -82,7 +82,7 @@ public class ChatServiceImpl implements ChatService {
                 String text = result.getText() != null ? result.getText() : "...";
                 assistantMessage = saveMessage(
                         conversation,
-                        ChatMessageRole.ASSISTANT,
+                        ChatMessageRole.TRO_LY,
                         text,
                         result.getTrace() == null ? null : objectMapper.valueToTree(result.getTrace()).toString(),
                         null,
@@ -93,7 +93,7 @@ public class ChatServiceImpl implements ChatService {
             default -> {
                 assistantMessage = saveMessage(
                         conversation,
-                        ChatMessageRole.ASSISTANT,
+                        ChatMessageRole.TRO_LY,
                         "Khong ro trang thai phan hoi",
                         null,
                         null,
@@ -122,7 +122,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
-    public ChatMessageDto confirmAction(ChatConfirmRequest req, User user) throws Exception {
+    public ChatMessageResponse confirmAction(ChatConfirmRequest req, User user) throws Exception {
         if (req == null || req.getTinNhanId() == null) {
             throw new IllegalArgumentException("Thieu thong tin xac nhan");
         }
@@ -148,7 +148,7 @@ public class ChatServiceImpl implements ChatService {
 
             ChatMessage reply = saveMessage(
                     conversation,
-                    ChatMessageRole.ASSISTANT,
+                    ChatMessageRole.TRO_LY,
                     "Da huy thao tac. Ban co the yeu cau thao tac khac.",
                     null,
                     null,
@@ -170,7 +170,7 @@ public class ChatServiceImpl implements ChatService {
 
             ChatMessage reply = saveMessage(
                     conversation,
-                    ChatMessageRole.ASSISTANT,
+                    ChatMessageRole.TRO_LY,
                     successText + "\n\nBan can ho tro them gi khac?",
                     null,
                     null,
@@ -186,7 +186,7 @@ public class ChatServiceImpl implements ChatService {
 
             ChatMessage reply = saveMessage(
                     conversation,
-                    ChatMessageRole.ASSISTANT,
+                    ChatMessageRole.TRO_LY,
                     "Khong the thuc hien: " + ex.getMessage() + "\n\nVui long kiem tra lai thong tin va thu lai.",
                     null,
                     null,
@@ -198,12 +198,12 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<ChatConversationDto> listConversations(User user) {
+    public List<ChatConversationResponse> listConversations(User user) {
         List<ChatConversation> list = conversationRepository
-                .findByNguoiDungIdAndTrangThaiOrderByNgaySuaDesc(user.getId(), ChatConversationStatus.ACTIVE);
-        List<ChatConversationDto> result = new ArrayList<>();
+                .findByNguoiDungIdAndTrangThaiOrderByNgaySuaDesc(user.getId(), ChatConversationStatus.DANG_HOAT_DONG);
+        List<ChatConversationResponse> result = new ArrayList<>();
         for (ChatConversation c : list) {
-            ChatConversationDto dto = toConversationDto(c);
+            ChatConversationResponse dto = toConversationDto(c);
             List<ChatMessage> msgs = messageRepository.findByHoiThoaiIdOrderByNgayTaoAsc(c.getId());
             if (!msgs.isEmpty()) {
                 ChatMessage last = msgs.get(msgs.size() - 1);
@@ -218,7 +218,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<ChatMessageDto> getConversationMessages(Long hoiThoaiId, User user) throws Exception {
+    public List<ChatMessageResponse> getConversationMessages(Long hoiThoaiId, User user) throws Exception {
         ChatConversation conversation = conversationRepository.findById(hoiThoaiId)
                 .orElseThrow(() -> new Exception("Khong tim thay cuoc tro chuyen"));
         if (!conversation.getNguoiDung().getId().equals(user.getId())) {
@@ -235,7 +235,7 @@ public class ChatServiceImpl implements ChatService {
         if (!conversation.getNguoiDung().getId().equals(user.getId())) {
             throw new Exception("Ban khong co quyen voi cuoc tro chuyen nay");
         }
-        conversation.setTrangThai(ChatConversationStatus.DELETED);
+        conversation.setTrangThai(ChatConversationStatus.DA_XOA);
         conversation.setNgaySua(LocalDateTime.now());
         conversationRepository.save(conversation);
     }
@@ -243,9 +243,9 @@ public class ChatServiceImpl implements ChatService {
     private List<PlannerService.ChatHistoryTurn> loadHistory(ChatConversation conversation) {
         List<ChatMessage> all = messageRepository.findByHoiThoaiIdOrderByNgayTaoAsc(conversation.getId());
         return all.stream()
-                .filter(m -> m.getVaiTro() == ChatMessageRole.USER || m.getVaiTro() == ChatMessageRole.ASSISTANT)
+                .filter(m -> m.getVaiTro() == ChatMessageRole.NGUOI_DUNG || m.getVaiTro() == ChatMessageRole.TRO_LY)
                 .map(m -> new PlannerService.ChatHistoryTurn(
-                        m.getVaiTro() == ChatMessageRole.USER
+                        m.getVaiTro() == ChatMessageRole.NGUOI_DUNG
                                 ? PlannerService.ChatHistoryTurn.Role.USER
                                 : PlannerService.ChatHistoryTurn.Role.ASSISTANT,
                         m.getNoiDung()))
@@ -263,14 +263,14 @@ public class ChatServiceImpl implements ChatService {
         if (hoiThoaiId != null) {
             ChatConversation existing = conversationRepository.findById(hoiThoaiId).orElse(null);
             if (existing != null && existing.getNguoiDung().getId().equals(user.getId())
-                    && existing.getTrangThai() == ChatConversationStatus.ACTIVE) {
+                    && existing.getTrangThai() == ChatConversationStatus.DANG_HOAT_DONG) {
                 return existing;
             }
         }
         ChatConversation conversation = new ChatConversation();
         conversation.setNguoiDung(user);
         conversation.setTieuDe("Cuoc tro chuyen moi");
-        conversation.setTrangThai(ChatConversationStatus.ACTIVE);
+        conversation.setTrangThai(ChatConversationStatus.DANG_HOAT_DONG);
         conversation.setNgayTao(LocalDateTime.now());
         conversation.setNgaySua(LocalDateTime.now());
         return conversationRepository.save(conversation);
@@ -329,8 +329,8 @@ public class ChatServiceImpl implements ChatService {
         return trimmed.length() > 50 ? trimmed.substring(0, 50) + "..." : trimmed;
     }
 
-    private ChatMessageDto toDto(ChatMessage m) {
-        ChatMessageDto dto = new ChatMessageDto();
+    private ChatMessageResponse toDto(ChatMessage m) {
+        ChatMessageResponse dto = new ChatMessageResponse();
         dto.setId(m.getId());
         dto.setHoiThoaiId(m.getHoiThoai() != null ? m.getHoiThoai().getId() : null);
         dto.setVaiTro(m.getVaiTro());
@@ -345,16 +345,16 @@ public class ChatServiceImpl implements ChatService {
         return dto;
     }
 
-    private List<ChatMessageDto> toDtos(List<ChatMessage> messages) {
-        List<ChatMessageDto> result = new ArrayList<>();
+    private List<ChatMessageResponse> toDtos(List<ChatMessage> messages) {
+        List<ChatMessageResponse> result = new ArrayList<>();
         for (ChatMessage m : messages) {
             result.add(toDto(m));
         }
         return result;
     }
 
-    private ChatConversationDto toConversationDto(ChatConversation c) {
-        ChatConversationDto dto = new ChatConversationDto();
+    private ChatConversationResponse toConversationDto(ChatConversation c) {
+        ChatConversationResponse dto = new ChatConversationResponse();
         dto.setId(c.getId());
         dto.setTieuDe(c.getTieuDe());
         dto.setNguoiDungId(c.getNguoiDung() != null ? c.getNguoiDung().getId() : null);

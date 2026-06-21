@@ -12,13 +12,16 @@ import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.NotificationRepository;
 import com.example.rental.service.EmailTemplateService;
 import com.example.rental.service.NotificationService;
+import com.example.rental.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -44,6 +47,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final ContractRepository contractRepository;
     private final InvoiceRepository invoiceRepository;
     private final EmailTemplateService emailTemplateService;
+    private final SystemSettingService systemSettingService;
 
     private static final String TEMPLATE_CONTRACT_EXPIRY = "HET_HAN_HD";
     private static final String TEMPLATE_OVERDUE = "QUA_HAN";
@@ -199,18 +203,20 @@ public class NotificationServiceImpl implements NotificationService {
                 createNotification(nguoiDung, NotificationType.HOA_DON,
                         tieuDe, noiDung, invoice.getId());
 
-                com.example.rental.model.Tenant tenant = contract != null ? contract.getKhachThue() : null;
-                if (tenant != null && tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
-                    com.example.rental.model.Room room = contract.getPhongTro();
-                    java.util.Map<String, String> vars = new java.util.HashMap<>();
-                    vars.put("tenant_name", tenantName);
-                    vars.put("room", roomLabel);
-                    vars.put("property", (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-");
-                    vars.put("amount", formatMoney(invoice.getTongTien()));
-                    vars.put("due_date", invoice.getHanThanhToan().format(DATE_FMT));
-                    vars.put("overdue_days", String.valueOf(daysOverdue));
-                    vars.put("late_fee", formatMoney(BigDecimal.ZERO));
-                    emailTemplateService.sendWithTemplate(TEMPLATE_OVERDUE, tenant.getEmail(), vars);
+                if (systemSettingService.isAutoSendOverdueEmail()) {
+                    com.example.rental.model.Tenant tenant = contract != null ? contract.getKhachThue() : null;
+                    if (tenant != null && tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+                        com.example.rental.model.Room room = contract.getPhongTro();
+                        java.util.Map<String, String> vars = new java.util.HashMap<>();
+                        vars.put("tenant_name", tenantName);
+                        vars.put("room", roomLabel);
+                        vars.put("property", (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-");
+                        vars.put("amount", formatMoney(invoice.getTongTien()));
+                        vars.put("due_date", invoice.getHanThanhToan().format(DATE_FMT));
+                        vars.put("overdue_days", String.valueOf(daysOverdue));
+                        vars.put("late_fee", formatMoney(calcLatePenalty(invoice.getTongTien())));
+                        emailTemplateService.sendWithTemplate(TEMPLATE_OVERDUE, tenant.getEmail(), vars);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -292,5 +298,36 @@ public class NotificationServiceImpl implements NotificationService {
     private String formatMoney(BigDecimal value) {
         if (value == null) return "0 VND";
         return MONEY_FMT.format(value) + " VND";
+    }
+
+    private BigDecimal calcLatePenalty(BigDecimal tongTien) {
+        if (tongTien == null || tongTien.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal percent = systemSettingService.getLatePenaltyPercent();
+        return tongTien.multiply(percent).divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
+    }
+
+    @Scheduled(cron = "0 0 1 * * *")
+    @Transactional
+    public void updateOverdueInvoices() {
+        LocalDate today = LocalDate.now();
+        List<Invoice> allInvoices = invoiceRepository.findAll();
+        int updated = 0;
+        for (Invoice invoice : allInvoices) {
+            if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) continue;
+            if (invoice.getHanThanhToan() == null) continue;
+            if (!invoice.getHanThanhToan().isBefore(today)) continue;
+            if (invoice.getTrangThai() == InvoiceStatus.QUA_HAN) continue;
+
+            invoice.setTrangThai(InvoiceStatus.QUA_HAN);
+            BigDecimal phiPhat = calcLatePenalty(invoice.getTongTien());
+            invoice.setPhiPhat(phiPhat);
+            invoiceRepository.save(invoice);
+            updated++;
+        }
+        if (updated > 0) {
+            log.info("Da cap nhat {} hoa don qua han", updated);
+        }
     }
 }

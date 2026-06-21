@@ -1,8 +1,8 @@
 package com.example.rental.controller;
 
-import com.example.rental.dto.DashboardFilterDTO;
-import com.example.rental.dto.RevenueChartDTO;
-import com.example.rental.dto.RoomStatusDTO;
+import com.example.rental.dto.DashboardFilterResponse;
+import com.example.rental.dto.RevenueChartResponse;
+import com.example.rental.dto.RoomStatusResponse;
 import com.example.rental.model.User;
 import com.example.rental.service.DashboardService;
 import com.example.rental.service.UserService;
@@ -21,29 +21,29 @@ public class DashboardController {
     private final UserService userService;
 
     @GetMapping("/revenue")
-    public ResponseEntity<List<RevenueChartDTO>> getRevenueChart(
+    public ResponseEntity<List<RevenueChartResponse>> getRevenueChart(
             @RequestParam int year,
             @RequestParam(required = false) Long motelId,
             @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
         User user = jwt != null ? userService.findByJwt(jwt) : null;
-        List<RevenueChartDTO> data = dashboardService.getRevenueChart(year, motelId, user);
+        List<RevenueChartResponse> data = dashboardService.getRevenueChart(year, motelId, user);
         return ResponseEntity.ok(data);
     }
 
     @GetMapping("/room-status")
-    public ResponseEntity<RoomStatusDTO> getRoomStatus(
+    public ResponseEntity<RoomStatusResponse> getRoomStatus(
             @RequestParam(required = false) Long motelId,
             @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
         User user = jwt != null ? userService.findByJwt(jwt) : null;
-        RoomStatusDTO data = dashboardService.getRoomStatus(motelId, user);
+        RoomStatusResponse data = dashboardService.getRoomStatus(motelId, user);
         return ResponseEntity.ok(data);
     }
 
     @GetMapping("/filters")
-    public ResponseEntity<DashboardFilterDTO> getFilters(
+    public ResponseEntity<DashboardFilterResponse> getFilters(
             @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
         User user = jwt != null ? userService.findByJwt(jwt) : null;
-        DashboardFilterDTO data = dashboardService.getFilters(user);
+        DashboardFilterResponse data = dashboardService.getFilters(user);
         return ResponseEntity.ok(data);
     }
 }

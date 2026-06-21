@@ -23,7 +23,7 @@ public class ChatConversation {
     private User nguoiDung;
 
     @Enumerated(EnumType.STRING)
-    private ChatConversationStatus trangThai = ChatConversationStatus.ACTIVE;
+    private ChatConversationStatus trangThai = ChatConversationStatus.DANG_HOAT_DONG;
 
     private LocalDateTime ngayTao;
 

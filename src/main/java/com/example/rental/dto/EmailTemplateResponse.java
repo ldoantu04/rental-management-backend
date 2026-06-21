@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EmailTemplateDTO {
+public class EmailTemplateResponse {
     private Long id;
     private String maMau;
     private String tenMau;

@@ -6,7 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-public class ChatConversationDto {
+public class ChatConversationResponse {
     private Long id;
     private String tieuDe;
     private Long nguoiDungId;

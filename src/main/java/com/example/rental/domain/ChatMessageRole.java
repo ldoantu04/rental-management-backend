@@ -1,8 +1,8 @@
 package com.example.rental.domain;
 
 public enum ChatMessageRole {
-    USER,
-    ASSISTANT,
-    SYSTEM,
-    TOOL
+    NGUOI_DUNG,
+    TRO_LY,
+    HE_THONG,
+    CONG_CU
 }

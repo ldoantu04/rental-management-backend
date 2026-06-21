@@ -3,6 +3,7 @@ package com.example.rental.service.utils;
 import com.example.rental.domain.InvoiceStatus;
 import com.example.rental.model.Contract;
 import com.example.rental.model.Invoice;
+import com.example.rental.model.InvoiceServiceItem;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
 import com.lowagie.text.Document;
@@ -25,6 +26,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -83,35 +85,107 @@ public class InvoicePdfService {
         document.add(info);
         document.add(emptyLine(10));
 
-        Paragraph itemsHeader = new Paragraph("CHI TIET DICH VU", headingFont);
+        Paragraph itemsHeader = new Paragraph("CHI TIET HOA DON", headingFont);
         itemsHeader.setSpacingAfter(6f);
         document.add(itemsHeader);
 
-        PdfPTable tbl = new PdfPTable(5);
+        // Build table with 8 columns: STT, Danh muc, Don vi, Chi so dau, Chi so moi, So luong, Don gia, Thanh tien
+        PdfPTable tbl = new PdfPTable(8);
         tbl.setWidthPercentage(100);
-        tbl.setWidths(new float[]{2.6f, 1.2f, 1.2f, 1.2f, 1.4f});
+        tbl.setWidths(new float[]{0.4f, 1.8f, 0.8f, 0.8f, 0.8f, 0.7f, 1.1f, 1.2f});
+        addHeaderCell(tbl, "STT", base);
         addHeaderCell(tbl, "Danh muc", base);
-        addHeaderCell(tbl, "Chi so cu", base);
+        addHeaderCell(tbl, "Don vi", base);
+        addHeaderCell(tbl, "Chi so dau", base);
         addHeaderCell(tbl, "Chi so moi", base);
+        addHeaderCell(tbl, "So luong", base);
         addHeaderCell(tbl, "Don gia", base);
         addHeaderCell(tbl, "Thanh tien", base);
 
-        addItemCell(tbl, "Tien phong", "", "", formatMoney(invoice.getTienPhong()), formatMoney(invoice.getTienPhong()), bodyFont);
-        addItemCell(tbl, "Tien dien",
-                String.valueOf(invoice.getChiSoDienCu() == null ? "" : invoice.getChiSoDienCu()),
-                String.valueOf(invoice.getChiSoDienMoi() == null ? "" : invoice.getChiSoDienMoi()),
-                formatMoney(invoice.getGiaDien()),
-                formatMoney(computeElectric(invoice)),
-                bodyFont);
-        addItemCell(tbl, "Tien nuoc",
-                String.valueOf(invoice.getChiSoNuocCu() == null ? "" : invoice.getChiSoNuocCu()),
-                String.valueOf(invoice.getChiSoNuocMoi() == null ? "" : invoice.getChiSoNuocMoi()),
-                formatMoney(invoice.getGiaNuoc()),
-                formatMoney(computeWater(invoice)),
-                bodyFont);
-        document.add(tbl);
-        document.add(emptyLine(8));
+        // Use the stored danhSachDichVu line items as single source of truth
+        List<InvoiceServiceItem> items = invoice.getDanhSachDichVu();
+        BigDecimal subtotal = BigDecimal.ZERO;
+        int stt = 1;
+        if (items != null && !items.isEmpty()) {
+            for (InvoiceServiceItem item : items) {
+                String name = safe(item.getTenDichVu());
+                String unit = safe(item.getKieuTinh());
+                BigDecimal qty = item.getSoLuong() != null ? item.getSoLuong() : BigDecimal.ONE;
+                BigDecimal price = item.getDonGia() != null ? item.getDonGia() : BigDecimal.ZERO;
+                BigDecimal amount = item.getThanhTien() != null ? item.getThanhTien() : qty.multiply(price);
+                subtotal = subtotal.add(amount);
 
+                // Chi so: read from loaiDichVu tag instead of name matching
+                String chiSoDau = "";
+                String chiSoMoi = "";
+                String loai = item.getLoaiDichVu();
+                if ("DIEN".equals(loai)) {
+                    chiSoDau = item.getChiSoDau() != null ? String.valueOf(item.getChiSoDau()) : "";
+                    chiSoMoi = item.getChiSoCuoi() != null ? String.valueOf(item.getChiSoCuoi()) : "";
+                } else if ("NUOC".equals(loai)) {
+                    chiSoDau = item.getChiSoDau() != null ? String.valueOf(item.getChiSoDau()) : "";
+                    chiSoMoi = item.getChiSoCuoi() != null ? String.valueOf(item.getChiSoCuoi()) : "";
+                }
+
+                addBodyCell(tbl, String.valueOf(stt++), bodyFont, Element.ALIGN_CENTER);
+                addBodyCell(tbl, name, bodyFont, Element.ALIGN_LEFT);
+                addBodyCell(tbl, unit, bodyFont, Element.ALIGN_CENTER);
+                addBodyCell(tbl, chiSoDau, bodyFont, Element.ALIGN_CENTER);
+                addBodyCell(tbl, chiSoMoi, bodyFont, Element.ALIGN_CENTER);
+                addBodyCell(tbl, formatNumber(qty), bodyFont, Element.ALIGN_CENTER);
+                addBodyCell(tbl, formatMoney(price), bodyFont, Element.ALIGN_RIGHT);
+                Font bold = new Font(bodyFont.getBaseFont(), 10, Font.BOLD, new Color(17, 24, 39));
+                addBodyCell(tbl, formatMoney(amount), bold, Element.ALIGN_RIGHT);
+            }
+        }
+        document.add(tbl);
+        document.add(emptyLine(4));
+
+        // Use subtotal from line items; fall back to invoice.tongTien for legacy data
+        if (subtotal.signum() == 0 && invoice.getTongTien() != null) {
+            subtotal = invoice.getTongTien();
+        }
+
+        // Subtotal
+        PdfPTable subtotalTable = new PdfPTable(2);
+        subtotalTable.setWidthPercentage(100);
+        subtotalTable.setWidths(new float[]{2f, 1f});
+        PdfPCell subLabelCell = new PdfPCell(new Phrase("Thanh tien", new Font(base, 10, Font.NORMAL, new Color(75, 85, 99))));
+        subLabelCell.setBorder(Rectangle.NO_BORDER);
+        subLabelCell.setPadding(4f);
+        subtotalTable.addCell(subLabelCell);
+        PdfPCell subValueCell = new PdfPCell(new Phrase(formatMoney(subtotal), new Font(base, 10, Font.NORMAL, new Color(75, 85, 99))));
+        subValueCell.setBorder(Rectangle.NO_BORDER);
+        subValueCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        subValueCell.setPadding(4f);
+        subtotalTable.addCell(subValueCell);
+        document.add(subtotalTable);
+
+        // Penalty fee
+        BigDecimal phiPhat = invoice.getPhiPhat() != null ? invoice.getPhiPhat() : BigDecimal.ZERO;
+        BigDecimal tongCong = subtotal.add(phiPhat);
+        if (phiPhat.signum() > 0) {
+            PdfPTable penaltyTable = new PdfPTable(2);
+            penaltyTable.setWidthPercentage(100);
+            penaltyTable.setWidths(new float[]{2f, 1f});
+
+            Font penaltyFont = new Font(base, 10, Font.BOLD, new Color(220, 38, 38));
+            PdfPCell penaltyLabelCell = new PdfPCell(new Phrase("Phi phat qua han", penaltyFont));
+            penaltyLabelCell.setBorder(Rectangle.NO_BORDER);
+            penaltyLabelCell.setPadding(4f);
+            penaltyTable.addCell(penaltyLabelCell);
+
+            PdfPCell penaltyValueCell = new PdfPCell(new Phrase(formatMoney(phiPhat), penaltyFont));
+            penaltyValueCell.setBorder(Rectangle.NO_BORDER);
+            penaltyValueCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            penaltyValueCell.setPadding(4f);
+            penaltyTable.addCell(penaltyValueCell);
+
+            document.add(penaltyTable);
+            document.add(emptyLine(4));
+        }
+
+        // Total row
         PdfPTable total = new PdfPTable(2);
         total.setWidthPercentage(100);
         total.setWidths(new float[]{2f, 1f});
@@ -121,7 +195,7 @@ public class InvoicePdfService {
         labelCell.setBackgroundColor(new Color(254, 242, 242));
         labelCell.setPadding(10f);
         total.addCell(labelCell);
-        PdfPCell valueCell = new PdfPCell(new Phrase(formatMoney(invoice.getTongTien()), new Font(base, 12, Font.BOLD, new Color(128, 0, 28))));
+        PdfPCell valueCell = new PdfPCell(new Phrase(formatMoney(tongCong), new Font(base, 12, Font.BOLD, new Color(128, 0, 28))));
         valueCell.setBorder(Rectangle.BOX);
         valueCell.setBorderColor(new Color(254, 226, 226));
         valueCell.setBackgroundColor(new Color(254, 242, 242));
@@ -154,22 +228,6 @@ public class InvoicePdfService {
 
         document.close();
         return out.toByteArray();
-    }
-
-    private BigDecimal computeElectric(Invoice invoice) {
-        if (invoice.getChiSoDienMoi() == null || invoice.getChiSoDienCu() == null || invoice.getGiaDien() == null) {
-            return BigDecimal.ZERO;
-        }
-        int diff = Math.max(invoice.getChiSoDienMoi() - invoice.getChiSoDienCu(), 0);
-        return invoice.getGiaDien().multiply(BigDecimal.valueOf(diff));
-    }
-
-    private BigDecimal computeWater(Invoice invoice) {
-        if (invoice.getChiSoNuocMoi() == null || invoice.getChiSoNuocCu() == null || invoice.getGiaNuoc() == null) {
-            return BigDecimal.ZERO;
-        }
-        int diff = Math.max(invoice.getChiSoNuocMoi() - invoice.getChiSoNuocCu(), 0);
-        return invoice.getGiaNuoc().multiply(BigDecimal.valueOf(diff));
     }
 
     private String trangThaiHienThi(InvoiceStatus status) {
@@ -251,15 +309,6 @@ public class InvoicePdfService {
         table.addCell(cell);
     }
 
-    private void addItemCell(PdfPTable table, String name, String start, String end, String price, String amount, Font font) {
-        addBodyCell(table, name, font, Element.ALIGN_LEFT);
-        addBodyCell(table, start, font, Element.ALIGN_CENTER);
-        addBodyCell(table, end, font, Element.ALIGN_CENTER);
-        addBodyCell(table, price, font, Element.ALIGN_RIGHT);
-        Font bold = new Font(font.getBaseFont(), 10, Font.BOLD, new Color(17, 24, 39));
-        addBodyCell(table, amount, bold, Element.ALIGN_RIGHT);
-    }
-
     private void addBodyCell(PdfPTable table, String text, Font font, int align) {
         PdfPCell cell = new PdfPCell(new Phrase(text, font));
         cell.setPadding(8f);
@@ -290,6 +339,14 @@ public class InvoicePdfService {
     private String formatMoney(BigDecimal value) {
         if (value == null) return "0 VND";
         return MONEY_FMT.format(value) + " VND";
+    }
+
+    private String formatNumber(BigDecimal value) {
+        if (value == null) return "0";
+        if (value.stripTrailingZeros().scale() <= 0) {
+            return MONEY_FMT.format(value.longValue());
+        }
+        return MONEY_FMT.format(value);
     }
 
     private String safe(String value) {

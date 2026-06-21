@@ -1,7 +1,7 @@
 package com.example.rental.domain;
 
 public enum ChatConversationStatus {
-    ACTIVE,
-    ARCHIVED,
-    DELETED
+    DANG_HOAT_DONG,
+    LUU_TRU,
+    DA_XOA
 }

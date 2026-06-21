@@ -6,7 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-public class ChatMessageDto {
+public class ChatMessageResponse {
     private Long id;
     private Long hoiThoaiId;
     private ChatMessageRole vaiTro;

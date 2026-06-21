@@ -75,10 +75,12 @@ public class ContractServiceImpl implements ContractService {
         contract.setNgayKetThuc(req.getNgayKetThuc());
         contract.setTienCoc(req.getTienCoc());
         contract.setGiaThue(req.getGiaThue());
+        contract.setGiaDien(req.getGiaDien());
+        contract.setGiaNuoc(req.getGiaNuoc());
+        contract.setKieuTinhNuoc(req.getKieuTinhNuoc());
         contract.setChuKyThanhToan(req.getChuKyThanhToan() != null ? req.getChuKyThanhToan() : 5);
         contract.setNgayThanhToan(req.getNgayThanhToan());
         contract.setDieuKhoan(req.getDieuKhoan());
-        contract.setDichVu(req.getDichVu());
         contract.setFileHopDong(req.getFileHopDong());
         contract.setTrangThai(ContractStatus.DANG_HIEU_LUC);
         contract.setNguoiTao(nguoiTao);
@@ -139,6 +141,15 @@ public class ContractServiceImpl implements ContractService {
         if (req.getGiaThue() != null) {
             contract.setGiaThue(req.getGiaThue());
         }
+        if (req.getGiaDien() != null) {
+            contract.setGiaDien(req.getGiaDien());
+        }
+        if (req.getGiaNuoc() != null) {
+            contract.setGiaNuoc(req.getGiaNuoc());
+        }
+        if (req.getKieuTinhNuoc() != null) {
+            contract.setKieuTinhNuoc(req.getKieuTinhNuoc());
+        }
         if (req.getChuKyThanhToan() != null) {
             contract.setChuKyThanhToan(req.getChuKyThanhToan());
         }
@@ -147,9 +158,6 @@ public class ContractServiceImpl implements ContractService {
         }
         if (req.getDieuKhoan() != null) {
             contract.setDieuKhoan(req.getDieuKhoan());
-        }
-        if (req.getDichVu() != null) {
-            contract.setDichVu(req.getDichVu());
         }
         if (req.getFileHopDong() != null) {
             contract.setFileHopDong(req.getFileHopDong());
@@ -211,7 +219,7 @@ public class ContractServiceImpl implements ContractService {
             item.setTenDichVu(req.getTenDichVu());
             item.setKieuTinh(req.getKieuTinh());
             item.setDonGia(req.getDonGia() != null ? req.getDonGia() : java.math.BigDecimal.ZERO);
-            item.setLaDichVuBoSung(Boolean.TRUE.equals(req.getLaDichVuBoSung()));
+            item.setLaDichVuBoSung(true);
             contractServiceItemRepository.save(item);
             contract.getDanhSachDichVu().add(item);
         }

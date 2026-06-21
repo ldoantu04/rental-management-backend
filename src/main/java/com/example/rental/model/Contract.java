@@ -57,10 +57,6 @@ public class Contract {
 
     private String dieuKhoan;
 
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String dichVu;
-
     private String fileHopDong;
 
     @Enumerated(EnumType.STRING)
@@ -79,7 +75,7 @@ public class Contract {
 
     private LocalDateTime ngaySua;
 
-    @OneToMany(mappedBy = "hopDong", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "hopDong", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ContractServiceItem> danhSachDichVu = new ArrayList<>();
 
     @Transient

@@ -1,6 +1,6 @@
 package com.example.rental.controller;
 
-import com.example.rental.dto.EmailTemplateDTO;
+import com.example.rental.dto.EmailTemplateResponse;
 import com.example.rental.service.EmailTemplateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,29 +16,29 @@ public class EmailTemplateController {
     private final EmailTemplateService emailTemplateService;
 
     @GetMapping
-    public ResponseEntity<List<EmailTemplateDTO>> getAll() {
+    public ResponseEntity<List<EmailTemplateResponse>> getAll() {
         return ResponseEntity.ok(emailTemplateService.getAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<EmailTemplateDTO> getById(@PathVariable Long id) {
+    public ResponseEntity<EmailTemplateResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(emailTemplateService.getById(id));
     }
 
     @GetMapping("/code/{maMau}")
-    public ResponseEntity<EmailTemplateDTO> getByMaMau(@PathVariable String maMau) {
+    public ResponseEntity<EmailTemplateResponse> getByMaMau(@PathVariable String maMau) {
         return ResponseEntity.ok(emailTemplateService.getByMaMau(maMau));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<EmailTemplateDTO> update(
+    public ResponseEntity<EmailTemplateResponse> update(
             @PathVariable Long id,
-            @RequestBody EmailTemplateDTO dto) {
+            @RequestBody EmailTemplateResponse dto) {
         return ResponseEntity.ok(emailTemplateService.update(id, dto));
     }
 
     @PatchMapping("/{id}/enabled")
-    public ResponseEntity<EmailTemplateDTO> updateEnabled(
+    public ResponseEntity<EmailTemplateResponse> updateEnabled(
             @PathVariable Long id,
             @RequestParam Boolean enabled) {
         return ResponseEntity.ok(emailTemplateService.updateEnabled(id, enabled));
