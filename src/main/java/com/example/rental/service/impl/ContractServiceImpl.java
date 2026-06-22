@@ -282,6 +282,10 @@ public class ContractServiceImpl implements ContractService {
     public Contract findById(Long id, User currentUser) throws Exception {
         Contract contract = contractRepository.findById(id)
                 .orElseThrow(() -> new Exception("Khong tim thay hop dong voi id " + id));
+        contract.getDanhSachDichVu().size();
+        if (contract.getKhachThue() != null && contract.getKhachThue().getDanhSachNguoiOCung() != null) {
+            contract.getKhachThue().getDanhSachNguoiOCung().size();
+        }
         if (currentUser != null && !userService.isAdmin(currentUser)) {
             if (!userService.canAccessContract(currentUser, id)) {
                 throw new Exception("Ban khong co quyen truy cap hop dong nay");

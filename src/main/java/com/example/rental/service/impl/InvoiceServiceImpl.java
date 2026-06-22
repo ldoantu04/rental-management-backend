@@ -421,8 +421,19 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public int countPeopleByRoomId(Long roomId) {
-        return 1;
+        if (roomId == null) return 1;
+        List<Contract> active = contractRepository.findByPhongTroIdAndTrangThai(
+                roomId, com.example.rental.domain.ContractStatus.DANG_HIEU_LUC);
+        if (active == null || active.isEmpty()) return 1;
+        Contract contract = active.get(0);
+        if (contract.getKhachThue() == null) return 1;
+        int count = 1;
+        if (contract.getKhachThue().getDanhSachNguoiOCung() != null) {
+            count += contract.getKhachThue().getDanhSachNguoiOCung().size();
+        }
+        return count;
     }
 
     // ====================================================================
