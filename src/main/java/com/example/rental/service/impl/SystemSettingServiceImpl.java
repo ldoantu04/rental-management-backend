@@ -24,6 +24,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     public static final String KEY_AUTO_SEND_OVERDUE_EMAIL = "INVOICE_AUTO_SEND_OVERDUE_EMAIL";
     public static final String KEY_AUTO_SEND_PAYMENT_CONFIRMATION = "INVOICE_AUTO_SEND_PAYMENT_CONFIRMATION";
     public static final String KEY_AUTO_SEND_PAYMENT_REMINDER = "INVOICE_AUTO_SEND_PAYMENT_REMINDER";
+    public static final String KEY_AUTO_SEND_INVOICE_EMAIL = "INVOICE_AUTO_SEND_INVOICE_EMAIL";
 
     @PostConstruct
     @Transactional
@@ -34,6 +35,7 @@ public class SystemSettingServiceImpl implements SystemSettingService {
         seed(KEY_AUTO_SEND_OVERDUE_EMAIL, "true", "Tu dong gui email qua han");
         seed(KEY_AUTO_SEND_PAYMENT_CONFIRMATION, "true", "Tu dong gui email xac nhan thanh toan");
         seed(KEY_AUTO_SEND_PAYMENT_REMINDER, "true", "Tu dong gui email nhac thanh toan");
+        seed(KEY_AUTO_SEND_INVOICE_EMAIL, "true", "Tu dong gui email khi tao hoa don");
     }
 
     private void seed(String key, String defaultValue, String description) {
@@ -106,6 +108,11 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     }
 
     @Override
+    public boolean isAutoSendInvoiceEmail() {
+        return Boolean.parseBoolean(getValue(KEY_AUTO_SEND_INVOICE_EMAIL));
+    }
+
+    @Override
     @Transactional
     public void setDefaultDueDay(BigDecimal value) {
         setValue(KEY_DEFAULT_DUE_DAY, value != null ? value.toString() : "5");
@@ -139,5 +146,11 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     @Transactional
     public void setAutoSendPaymentReminderEmail(boolean value) {
         setValue(KEY_AUTO_SEND_PAYMENT_REMINDER, String.valueOf(value));
+    }
+
+    @Override
+    @Transactional
+    public void setAutoSendInvoiceEmail(boolean value) {
+        setValue(KEY_AUTO_SEND_INVOICE_EMAIL, String.valueOf(value));
     }
 }

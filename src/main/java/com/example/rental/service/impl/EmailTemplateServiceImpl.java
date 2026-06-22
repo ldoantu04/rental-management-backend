@@ -42,11 +42,16 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
     @PostConstruct
     @Transactional
     public void seedDefaultTemplates() {
-        if (emailTemplateRepository.count() > 0) {
-            return;
+        for (EmailTemplate t : defaults()) {
+            if (emailTemplateRepository.findByMaMau(t.getMaMau()).isEmpty()) {
+                emailTemplateRepository.save(t);
+                log.info("Da khoi tao mau email: {} ({})", t.getTenMau(), t.getMaMau());
+            }
         }
+    }
 
-        List<EmailTemplate> defaults = List.of(
+    private List<EmailTemplate> defaults() {
+        return List.of(
             createTemplate(MA_NHAC_THANH_TOAN, "Nhắc nhở thanh toán",
                 "[SmartRental] Hóa đơn tiền thuê {month} - {invoice_code}",
                 "SmartRental\nHệ thống quản lý nhà trọ thông minh\n\nXin chào {tenant_name},\n\nHóa đơn cho tháng {month} của phòng {room} - {property} sẽ đến hạn thanh toán vào ngày {due_date} với tổng số tiền {amount} VND.\n\nVui lòng truy cập các liên kết bên dưới để xem chi tiết và thanh toán hóa đơn.\n\nLiên kết xem hóa đơn:\n{invoice_url}\n\nLiên kết thanh toán:\n{payment_url}\n\nMã hóa đơn:\n{invoice_code}\n\nTrân trọng,\n\nĐội ngũ SmartRental",
@@ -64,9 +69,6 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
                 "Xin chào {tenant_name},\n\nHợp đồng thuê phòng {room} tại {property} sẽ hết hạn vào ngày {contract_end_date}.\n\nNếu bạn muốn tiếp tục thuê phòng, vui lòng liên hệ quản lý để gia hạn hợp đồng.\n\nTrân trọng,\n\nĐội ngũ SmartRental",
                 true)
         );
-
-        emailTemplateRepository.saveAll(defaults);
-        log.info("Da khoi tao {} mau email mac dinh", defaults.size());
     }
 
     @Override

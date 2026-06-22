@@ -16,6 +16,8 @@ public interface SystemSettingService {
 
     boolean isAutoSendPaymentReminderEmail();
 
+    boolean isAutoSendInvoiceEmail();
+
     void setDefaultDueDay(BigDecimal value);
 
     void setLatePenaltyPercent(BigDecimal value);
@@ -27,4 +29,6 @@ public interface SystemSettingService {
     void setAutoSendPaymentConfirmationEmail(boolean value);
 
     void setAutoSendPaymentReminderEmail(boolean value);
+
+    void setAutoSendInvoiceEmail(boolean value);
 }

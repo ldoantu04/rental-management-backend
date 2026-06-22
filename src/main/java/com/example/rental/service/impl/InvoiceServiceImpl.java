@@ -1,41 +1,61 @@
 package com.example.rental.service.impl;
 
 import com.example.rental.domain.InvoiceStatus;
+import com.example.rental.domain.PaymentMethod;
+import com.example.rental.domain.PaymentStatus;
 import com.example.rental.dto.InvoiceRequest;
 import com.example.rental.dto.InvoiceServiceItemRequest;
+import com.example.rental.config.VNPayConfig;
 import com.example.rental.model.Contract;
 import com.example.rental.model.Invoice;
 import com.example.rental.model.InvoiceServiceItem;
+import com.example.rental.model.Room;
+import com.example.rental.model.Tenant;
+import com.example.rental.model.Transaction;
 import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.InvoiceServiceItemRepository;
+import com.example.rental.repository.TransactionRepository;
+import com.example.rental.service.EmailTemplateService;
 import com.example.rental.service.InvoiceService;
 import com.example.rental.service.NotificationService;
 import com.example.rental.service.SystemSettingService;
 import com.example.rental.service.UserService;
 import com.example.rental.service.utils.InvoicePricingEngine;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final ContractRepository contractRepository;
     private final InvoiceServiceItemRepository invoiceServiceItemRepository;
+    private final TransactionRepository transactionRepository;
     private final UserService userService;
     private final NotificationService notificationService;
     private final SystemSettingService systemSettingService;
+    private final EmailTemplateService emailTemplateService;
+    private final VNPayConfig vnPayConfig;
+
+    private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("MM/yyyy");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // ====================================================================
     //  Create
@@ -379,6 +399,19 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
         invoice.setTrangThai(InvoiceStatus.DA_THANH_TOAN);
         invoice.setNgaySua(LocalDateTime.now());
+
+        Transaction transaction = new Transaction();
+        transaction.setMaGiaoDich("TM-" + invoice.getMaHoaDon() + "-" + System.currentTimeMillis());
+        transaction.setHoaDon(invoice);
+        transaction.setSoTien(invoice.getTongTien() != null ? invoice.getTongTien() : BigDecimal.ZERO);
+        transaction.setHinhThucTT(PaymentMethod.TIEN_MAT);
+        transaction.setTrangThai(PaymentStatus.THANH_CONG);
+        transaction.setNgayThanhToan(LocalDateTime.now());
+        transaction.setNgayTao(LocalDateTime.now());
+        transaction.setGhiChu("Thanh toan tien mat hoa don " + invoice.getMaHoaDon());
+        transactionRepository.save(transaction);
+        log.info("[markAsPaid] Tao giao dich tien mat {} cho hoa don {}", transaction.getMaGiaoDich(), invoice.getMaHoaDon());
+
         notificationService.notifyInvoicePaid(nguoiThanhToan, invoice.getId(), "TIEN_MAT");
         return invoiceRepository.save(invoice);
     }
@@ -451,6 +484,95 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private void sendInvoiceNotification(Invoice invoice) {
-        // Implemented by NotificationService — called after invoice creation.
+        if (invoice == null) {
+            log.warn("[InvoiceEmail] invoice is null, skip sending");
+            return;
+        }
+
+        Contract contract = invoice.getHopDong();
+        if (contract == null) {
+            log.warn("[InvoiceEmail] invoice {} has no contract, skip sending", invoice.getMaHoaDon());
+            return;
+        }
+        if (contract.getKhachThue() == null) {
+            log.warn("[InvoiceEmail] invoice {} contract has no tenant, skip sending", invoice.getMaHoaDon());
+            return;
+        }
+
+        Tenant tenant = contract.getKhachThue();
+        String tenantEmail = tenant.getEmail();
+        if (tenantEmail == null || tenantEmail.isBlank()) {
+            log.warn("[InvoiceEmail] invoice {} tenant {} has no email, skip sending",
+                    invoice.getMaHoaDon(), tenant.getHoTen());
+            return;
+        }
+
+        Room room = contract.getPhongTro();
+        String propertyName = (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-";
+
+        Map<String, String> vars = new LinkedHashMap<>();
+        vars.put("invoice_code", invoice.getMaHoaDon() != null ? invoice.getMaHoaDon() : "");
+        vars.put("tenant_name", tenant.getHoTen() != null ? tenant.getHoTen() : "");
+        vars.put("room", room != null ? room.getMaPhong() : "-");
+        vars.put("property", propertyName);
+        vars.put("month", invoice.getKyHoaDon() != null ? invoice.getKyHoaDon().format(MONTH_FMT) : "");
+        vars.put("rent_amount", invoice.getTienPhong() != null ? formatMoney(invoice.getTienPhong()) : "0");
+        vars.put("due_date", invoice.getHanThanhToan() != null ? invoice.getHanThanhToan().format(DATE_FMT) : "-");
+        vars.put("amount", invoice.getTongTien() != null ? formatMoney(invoice.getTongTien()) : "0");
+
+        String baseUrl = vnPayConfig.getPublicBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = "http://localhost:8080";
+        }
+        vars.put("invoice_url", baseUrl + "/api/invoices/public/" + invoice.getMaHoaDon() + "/pdf");
+        vars.put("payment_url", baseUrl + "/pay/" + invoice.getMaHoaDon());
+
+        // Electric
+        if (invoice.getChiSoDienCu() != null && invoice.getChiSoDienMoi() != null) {
+            int electricQty = Math.max(0, invoice.getChiSoDienMoi() - invoice.getChiSoDienCu());
+            vars.put("electric_reading", String.valueOf(electricQty));
+            vars.put("electric_price", invoice.getGiaDien() != null ? formatMoney(invoice.getGiaDien()) : "0");
+            vars.put("electric_amount", invoice.getGiaDien() != null
+                    ? formatMoney(invoice.getGiaDien().multiply(BigDecimal.valueOf(electricQty))) : "0");
+        } else {
+            vars.put("electric_reading", "0");
+            vars.put("electric_price", "0");
+            vars.put("electric_amount", "0");
+        }
+
+        // Water
+        String waterAmountStr = "0";
+        if (invoice.getKieuTinhNuoc() == com.example.rental.domain.WaterCalculationType.CHI_SO
+                && invoice.getChiSoNuocCu() != null && invoice.getChiSoNuocMoi() != null) {
+            int waterQty = Math.max(0, invoice.getChiSoNuocMoi() - invoice.getChiSoNuocCu());
+            if (invoice.getGiaNuoc() != null) {
+                waterAmountStr = formatMoney(invoice.getGiaNuoc().multiply(BigDecimal.valueOf(waterQty)));
+            }
+        } else if (invoice.getGiaNuoc() != null) {
+            waterAmountStr = formatMoney(invoice.getGiaNuoc());
+        }
+        vars.put("water_amount", waterAmountStr);
+
+        // Services detail
+        StringBuilder servicesDetail = new StringBuilder();
+        for (InvoiceServiceItem item : invoice.getDanhSachDichVu()) {
+            if (item == null) continue;
+            String name = item.getTenDichVu() != null ? item.getTenDichVu() : "";
+            BigDecimal thanhTien = item.getThanhTien() != null ? item.getThanhTien() : BigDecimal.ZERO;
+            String kieuTinh = item.getKieuTinh() != null ? item.getKieuTinh() : "";
+            servicesDetail.append(name).append(": ").append(formatMoney(thanhTien))
+                    .append(" (").append(kieuTinh).append(")\n");
+        }
+        vars.put("services_detail", servicesDetail.length() > 0 ? servicesDetail.toString().trim() : "Khong co");
+
+        log.info("[InvoiceEmail] Sending invoice email for {} to {} (invoice: {})",
+                tenant.getHoTen(), tenantEmail, invoice.getMaHoaDon());
+        emailTemplateService.sendWithTemplate("NHAC_THANH_TOAN", tenantEmail, vars);
+        log.info("[InvoiceEmail] Invoice email sent successfully for {}", invoice.getMaHoaDon());
+    }
+
+    private String formatMoney(BigDecimal value) {
+        if (value == null) return "0";
+        return value.setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 }
