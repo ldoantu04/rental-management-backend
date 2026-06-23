@@ -4,16 +4,19 @@ import com.example.rental.domain.ContractStatus;
 import com.example.rental.domain.InvoiceStatus;
 import com.example.rental.domain.RoomStatus;
 import com.example.rental.domain.TenantStatus;
+import com.example.rental.domain.UserRole;
 import com.example.rental.model.Contract;
 import com.example.rental.model.Invoice;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
+import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.MotelRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
 import com.example.rental.repository.TransactionRepository;
+import com.example.rental.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -31,9 +34,6 @@ import java.util.stream.Collectors;
 /**
  * Read-only Spring AI tool callbacks used by the assistant to fetch real data
  * from the database instead of hallucinating answers.
- *
- * <p>Write operations are NOT exposed here. They are handled in
- * {@link ChatActionService} after explicit user confirmation.</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -45,6 +45,7 @@ public class ChatQueryTools {
     private final InvoiceRepository invoiceRepository;
     private final TransactionRepository transactionRepository;
     private final MotelRepository motelRepository;
+    private final UserRepository userRepository;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -334,6 +335,74 @@ public class ChatQueryTools {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    @Tool(description = "Tra cuu danh sach nhan vien. Chi danh cho quan ly. Co the loc theo tu khoa hoac vai tro.")
+    public String getEmployeeOverview(
+            @ToolParam(description = "Tu khoa tra cuu (ho ten, email, username). Co the bo qua.", required = false) String keyword,
+            @ToolParam(description = "Vai tro can loc: QUAN_LY hoac NHAN_VIEN. Bo qua se tra cuu nhan vien.", required = false) String vaiTro) {
+        UserRole filterRole = UserRole.NHAN_VIEN;
+        if (vaiTro != null && !vaiTro.isBlank()) {
+            try {
+                filterRole = UserRole.valueOf(vaiTro.toUpperCase());
+            } catch (Exception ignored) {}
+        }
+        List<User> employees = userRepository.searchEmployees(keyword, filterRole, null);
+        if (employees.isEmpty()) {
+            return "Khong tim thay nhan vien phu hop.";
+        }
+        StringBuilder sb = new StringBuilder("Danh sach nhan vien (").append(employees.size()).append(" nguoi):\n");
+        int idx = 1;
+        for (User emp : employees) {
+            sb.append(idx++).append(". ").append(safe(emp.getHoTen()))
+                    .append(" - Username: ").append(safe(emp.getUsername()))
+                    .append(" - Email: ").append(safe(emp.getEmail()))
+                    .append(" - SDT: ").append(safe(emp.getSdt()))
+                    .append(" - Vai tro: ").append(emp.getVaiTro())
+                    .append(" - Trang thai: ").append(emp.getTrangThai());
+            if (emp.getAssignedMotels() != null && !emp.getAssignedMotels().isEmpty()) {
+                sb.append(" - Nha tro: ");
+                sb.append(emp.getAssignedMotels().stream()
+                        .map(m -> m.getTenTro())
+                        .collect(Collectors.joining(", ")));
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    @Tool(description = "Tra cuu danh sach tat ca tai khoan (nhan vien va quan ly). Chi danh cho quan ly.")
+    public String getUserOverview(
+            @ToolParam(description = "Tu khoa tra cuu (ho ten, email, username). Co the bo qua.", required = false) String keyword,
+            @ToolParam(description = "Vai tro can loc: QUAN_LY hoac NHAN_VIEN. Bo qua se tra cuu tat ca.", required = false) String vaiTro) {
+        UserRole filterRole = null;
+        if (vaiTro != null && !vaiTro.isBlank()) {
+            try {
+                filterRole = UserRole.valueOf(vaiTro.toUpperCase());
+            } catch (Exception ignored) {}
+        }
+        List<User> users = userRepository.searchEmployees(keyword, filterRole, null);
+        if (users.isEmpty()) {
+            return "Khong tim thay tai khoan phu hop.";
+        }
+        StringBuilder sb = new StringBuilder("Danh sach tai khoan (").append(users.size()).append(" tai khoan):\n");
+        int idx = 1;
+        for (User u : users) {
+            sb.append(idx++).append(". ").append(safe(u.getHoTen()))
+                    .append(" - Username: ").append(safe(u.getUsername()))
+                    .append(" - Email: ").append(safe(u.getEmail()))
+                    .append(" - SDT: ").append(safe(u.getSdt()))
+                    .append(" - Vai tro: ").append(u.getVaiTro())
+                    .append(" - Trang thai: ").append(u.getTrangThai());
+            if (u.getAssignedMotels() != null && !u.getAssignedMotels().isEmpty()) {
+                sb.append(" - Nha tro: ");
+                sb.append(u.getAssignedMotels().stream()
+                        .map(m -> m.getTenTro())
+                        .collect(Collectors.joining(", ")));
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     private String safe(String s) {

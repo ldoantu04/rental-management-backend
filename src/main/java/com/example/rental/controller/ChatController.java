@@ -1,7 +1,6 @@
 package com.example.rental.controller;
 
 import com.example.rental.dto.ApiResponse;
-import com.example.rental.dto.ChatConfirmRequest;
 import com.example.rental.dto.ChatConversationResponse;
 import com.example.rental.dto.ChatMessageResponse;
 import com.example.rental.dto.ChatSendRequest;
@@ -36,15 +35,6 @@ public class ChatController {
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findByJwt(jwt);
         ChatSendResponse response = chatService.sendMessage(req, user);
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/confirm")
-    public ResponseEntity<ChatMessageResponse> confirmAction(
-            @RequestBody ChatConfirmRequest req,
-            @RequestHeader("Authorization") String jwt) throws Exception {
-        User user = userService.findByJwt(jwt);
-        ChatMessageResponse response = chatService.confirmAction(req, user);
         return ResponseEntity.ok(response);
     }
 

@@ -4,10 +4,8 @@ import com.example.rental.domain.UserRole;
 import com.example.rental.model.User;
 import com.example.rental.service.ai.dto.PlannerResult;
 import com.example.rental.service.ai.dto.PlannerStep;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -19,31 +17,10 @@ import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Planner Agent: orchestrates a multi-step workflow between the LLM and the
- * Business Layer. The LLM is only allowed to emit one of two things per turn:
- *   1. a JSON object describing the next business step
- *      ({@code {"intent": "...", "businessTool": "...", "args": {...}, "thought": "..."}}),
- *   2. or a natural-language answer for the user.
- *
- * The Planner parses step #1, invokes the matching method on
- * {@link BusinessToolService}, feeds the structured result back to the LLM,
- * and loops until the LLM returns a final natural-language answer.
- *
- * Mutation Business Tools (anything that changes data) are NOT executed here.
- * They are exposed as a single "needs_confirm" JSON the frontend can show a
- * confirmation dialog for. Actual execution happens via the existing
- * {@link ChatActionService#execute} path on the confirm endpoint.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -56,126 +33,70 @@ public class PlannerService {
     private static final Pattern STEP_JSON = Pattern.compile(
             "```json\\s*(\\{[\\s\\S]*?\"businessTool\"[\\s\\S]*?\\})\\s*```",
             Pattern.CASE_INSENSITIVE);
-    private static final Pattern CONFIRM_JSON = Pattern.compile(
-            "```json\\s*(\\{[\\s\\S]*?\"hanhDong\"[\\s\\S]*?\\})\\s*```",
-            Pattern.CASE_INSENSITIVE);
     private static final Pattern BARE_JSON = Pattern.compile(
-            "^\\s*\\{[\\s\\S]*\"(businessTool|hanhDong)\"[\\s\\S]*\\}\\s*$");
+            "^\\s*\\{[\\s\\S]*\"businessTool\"[\\s\\S]*\\}\\s*$");
 
     private static final int MAX_STEPS = 6;
 
     private static final String PLANNER_SYSTEM_PROMPT = """
-            Bạn là **SmartRental AI Planner**, bộ điều phối trung tâm của hệ thống quản lý nhà trọ.
-            Bạn KHÔNG truy vấn database trực tiếp và KHÔNG bịa số. Mọi dữ liệu thật phải đến từ Business Tool.
+            Ban la **SmartRental AI**, tro ly tra cuu thong tin cho he thong quan ly nha tro.
+            Ban chi tra cuu thong tin, KHONG thuc hien bat ky thao tac tao/sua/xoa nao.
 
-            # Quy trình bắt buộc mỗi lượt
-            1. Phân tích yêu cầu người dùng.
-            2. Xác định dữ liệu cần có.
-            3. Tự quyết định Business Tool cần gọi tiếp theo (hoặc cho câu trả lời cuối).
-            4. Trả về ĐÚNG MỘT khối JSON trong ```json ...```.
+            # Nhung gi ban CO THE tra cuu
+            - Tong quan he thong (so nha tro, phong, khach thue, hop dong, hoa don, doanh thu)
+            - Thong tin nha tro (danh sach, dia chi, so phong, trang thai)
+            - Thong tin phong tro (ma phong, gia thue, trang thai, dien tich, so nguoi, nha tro chua)
+            - Thong tin khach thue (ho ten, SDT, CCCD, phong dang thue, hop dong)
+            - Thong tin hop dong (ma hop dong, ngay bat dau/ket thuc, trang thai, gia thue, tien coc)
+            - Thong tin hoa don (ky hoa don, tong tien, trang thai thanh toan, chi so dien/nuoc)
+            - Doanh thu theo thang/nam
+            - Phong dang trong, phong sap het han hop dong, hoa don chua thanh toan
+            - **Thong tin nhan vien / tai khoan** (chi danh cho QUAN LY): ho ten, email, SDT, vai tro, nha tro duoc phan cong
 
-            # Business Tool có sẵn (chỉ gọi đúng tên này)
-
-            ## Tra cứu / tổng quan (read-only, tự động thực thi)
+            # Business Tool tra cuu (chỉ dùng tool này, KHÔNG gọi tool tạo/sửa/xóa)
             - getRoomOverview(maPhong?, tenNhaTro?)
             - getTenantOverview(hoTen?, sdt?, cccd?)
             - getRoomOfTenant(hoTen?, sdt?, cccd?)
             - getActiveTenants(tenNhaTro?)
             - getContractsOfRoom(maPhong, tenNhaTro?)
             - checkRoomStatus(maPhong, tenNhaTro?)
-            - getInvoiceOverview(maHoaDon? hoặc maPhong? tenNhaTro?)
-            - calculateInvoice(maPhong?, tenNhaTro?, maHopDong?, chiSoDienMoi?, chiSoNuocMoi?, giaDien?, giaNuoc?, kieuTinhNuoc?, tienPhong?)
+            - getInvoiceOverview(maHoaDon?, maPhong?, tenNhaTro?)
+            - calculateInvoice(maPhong?, tenNhaTro?, maHopDong?)
 
-            ## Tạo / sửa (CẦN user xác nhận, chỉ trả JSON hanhDong)
-            - createInvoiceForRoom / createInvoiceByRoom(maPhong, tenNhaTro?, chiSoDienMoi, chiSoNuocMoi?, giaDien?, giaNuoc?, kieuTinhNuoc?, tienPhong?, hanThanhToan?, kyHoaDon?, ghiChu?)
-            - createContractForRoom / assignTenantToRoom(maPhong, tenNhaTro?, hoTen?, sdt?, cccd?, ngayBatDau?, ngayKetThuc?, soThang?, giaThue?, tienCoc?)
-            - renewContract / extendContract(maHopDong, ngayKetThuc?, soThang?)
-            - terminateContract / closeContract(maHopDong, lyDo?)
-            - checkoutTenant(maPhong?, tenNhaTro?, maHopDong?, lyDo?)
-            - moveTenant(maHopDong, maPhongMoi, tenNhaTroMoi?)
-            - updateInvoice(maHoaDon, chiSoDienMoi?, chiSoNuocMoi?, giaDien?, giaNuoc?, tienPhong?, hanThanhToan?, kyHoaDon?, ghiChu?)
-            - deleteInvoice(maHoaDon)
-            - collectPayment / createTransactionForInvoice(maHoaDon)
-            - createMotel(tenTro, diaChi?, soTang?, tongPhong?, ghiChu?)   // chỉ Quản lý
-            - createRoom(maPhong, tenNhaTro?, giaThue, dienTich?, soNguoi?, tang?, ghiChu?)
-            - createTenant(hoTen, ngaySinh?, gioiTinh?, cccd?, sdt?, email?, diaChi?, ghiChu?)
-
-            # Quy tắc vàng
-
-            - KHÔNG hỏi user về ID nội bộ (roomId, contractId, tenantId, motelId, invoiceId). Hệ thống tự resolve từ tên/mã.
+            # Quy tắc bắt buộc
+            - KHÔNG hỏi về ID nội bộ (roomId, contractId...). Hệ thống tự resolve từ tên/mã.
             - KHÔNG bịa số liệu. Nếu cần dữ liệu, gọi Business Tool tra cứu.
-            - Với thao tác CREATE / UPDATE / DELETE: gọi read-only tool trước để xác minh, sau đó trả JSON hanhDong để hệ thống xin xác nhận.
-            - Nếu nhiều kết quả trùng tên, gọi Business Tool tra cứu; nếu vẫn không phân biệt được thì hỏi user (text thuần).
-            - Luôn phản hồi bằng tiếng Việt.
-            - KHÔNG bao giờ tự ý thực thi thao tác thay đổi dữ liệu.
+            - KHÔNG đề cập đến ID database, internal fields, hay cấu trúc bảng.
+            - Nếu không tìm thấy dữ liệu, thông báo rõ ràng bằng tiếng Việt.
+            - Luôn phản hồi bằng tiếng Việt, thân thiện, chuyên nghiệp.
+            - KHÔNG gợi ý hay đề xuất các thao tác tạo/sửa/xóa dữ liệu.
 
-            # QUY TẮC RESOLVE ID (BẮT BUỘC)
+            # Phân quyền
+            - Nhân viên: chỉ truy cập nha tro/phòng được phân công quản lý.
+            - Quản lý: truy cập toàn bộ hệ thống.
 
-            Ưu tiên TUYỆT ĐỐI theo thứ tự:
-
-            1. Nếu người dùng nói "phòng P203, nhà trọ AB" -> gọi `getRoomOverview({maPhong:"P203", tenNhaTro:"AB"})` hoặc `checkRoomStatus` để resolve roomId + contractId + tenantId.
-            2. Sau đó mới gọi business tool tạo/sửa với maPhong / tenNhaTro. KHÔNG cần truyền maHopDong vì business tool tự resolve.
-            3. CHỈ truyền maHopDong khi người dùng đã cung cấp mã hợp đồng cụ thể (vd "hợp đồng HD001").
-            4. CHỈ truyền maHoaDon khi người dùng cung cấp mã hóa đơn cụ thể.
-
-            Khi cần confirm mutation, payload JSON KHÔNG ĐƯỢC chứa `maHopDong` mơ hồ / `null`. Các handler backend chỉ chấp nhận:
-
-            - CREATE_INVOICE: cần `maHopDong` thật (long) HOẶC `maPhong` + `tenNhaTro` (để hệ thống tự resolve). Phải tự gọi read-only tool trước.
-            - CREATE_CONTRACT: cần `maPhong` + `maKhachThue` (đều là long) HOẶC `maPhong` + `tenNhaTro` + thông tin khách (hoTen/sdt/cccd).
-            - CREATE_ROOM: cần `maPhong` + `maNhaTro` (long) HOẶC `maPhong` + `tenNhaTro`.
-            - UPDATE_INVOICE, DELETE_INVOICE: cần `maHoaDon` (string, có thể fuzzy match).
-            - Các action khác: tuân theo schema đã liệt kê.
-
-            Nếu sau khi tra cứu mà KHÔNG xác định được ID cần thiết, KHÔNG ĐƯỢC tự bịa số. Hãy hỏi user (text thuần) để lấy thêm thông tin.
-
-            # QUY TẮC THỜI GIAN (BẮT BUỘC)
-
-            Backend lưu trữ tất cả ngày tháng dưới dạng LocalDate (chuẩn ISO `yyyy-MM-dd`).
-            Khi truyền ngày trong args của Business Tool hoặc payload JSON, BẮT BUỘC dùng:
-
-            - Ngày đầy đủ: `yyyy-MM-dd` (ví dụ `2026-07-15`).
-            - Kỳ hóa đơn: `yyyy-MM` (ví dụ `2026-07`) -- hệ thống tự hiểu là ngày 1 của tháng.
-            - TUYỆT ĐỐI KHÔNG gửi `dd/MM/yyyy`, `MM/yyyy` hay bất kỳ format nào khác.
-
-            Khi user nói các cụm tiếng Việt, hãy CHỦ ĐỘNG quy đổi sang ISO trước khi gọi tool:
-
-            - "tháng này", "tháng hiện tại" -> tháng hiện tại của năm hiện tại.
+            # Quy tắc thời gian
+            Backend lưu trữ ngày dạng ISO `yyyy-MM-dd`. Khi user nói tiếng Việt, chủ động quy đổi:
+            - "tháng này" -> tháng hiện tại của năm hiện tại.
             - "tháng sau" -> tháng kế tiếp.
             - "tháng trước" -> tháng trước đó.
-            - "tháng 7", "tháng 7 năm nay" -> `2026-07` (năm hiện tại). Nếu user nói "tháng 7/2024" -> `2024-07`.
-            - "năm nay" -> năm hiện tại (LocalDate.now()).
-            - "quý này" -> tháng đầu quý hiện tại.
+            - "tháng 7" -> `2026-07` (năm hiện tại).
+            - "năm nay" -> năm hiện tại.
             - "hôm nay" -> ngày hôm nay.
-
-            Khi nói riêng về hợp đồng với "tháng 12 tháng" (soThang=12): cộng trực tiếp vào ngày bắt đầu, không cần tính năm.
-
-            KHÔNG ĐƯỢC hardcode năm. Luôn lấy năm hiện tại từ `LocalDate.now()` tại thời điểm xử lý.
+            KHÔNG ĐƯỢC hardcode năm.
 
             # Format phản hồi
-
-            ## Bước tiếp theo (gọi Business Tool)
+            Khi gọi Business Tool, trả về JSON:
             ```json
             {
               "intent": "Tra cuu thong tin phong",
               "businessTool": "getRoomOverview",
               "args": { "maPhong": "P203" },
-              "thought": "Can xem phong P203 dang co khach nao, hop dong gi"
+              "thought": "Can xem phong P203"
             }
             ```
 
-            ## Cần xác nhận thao tác
-            ```json
-            {
-              "hanhDong": "CREATE_INVOICE",
-              "moTaNgan": "Tao hoa don cho phong P203 ky 06/2026",
-              "payload": { "maHopDong": 17, "chiSoDienMoi": 250, "chiSoNuocMoi": 88 }
-            }
-            ```
-
-            ## Câu trả lời cuối cùng cho user
-            Trả về văn bản thường (không bọc ```json) với phân tích ngắn gọn, chuyên nghiệp, tiếng Việt.
-
-            Khi đã đủ thông tin để tạo hóa đơn / hợp đồng / thu tiền, LUÔN LUÔN trả JSON hanhDong để hệ thống xác nhận. Tuyệt đối KHÔNG tự thực thi.
+            Khi đã có đủ thông tin, trả về câu trả lời bằng tiếng Việt (không bọc ```json).
             """;
 
     public PlannerResult run(String userInput, List<ChatHistoryTurn> history, User user) {
@@ -191,7 +112,7 @@ public class PlannerService {
                         .content();
             } catch (Exception e) {
                 log.error("Loi khi goi AI: {}", e.getMessage());
-                return PlannerResult.error("Xin loi, toi dang gap su co ket noi voi dich vu AI. Vui long thu lai sau.");
+                return PlannerResult.error("Xin loi, toi dang gap su co khi ket noi voi dich vu AI. Vui long thu lai sau.");
             }
             messages.add(new AssistantMessage(llmReply == null ? "" : llmReply));
 
@@ -204,7 +125,7 @@ public class PlannerService {
                 } catch (ResolverService.AmbiguousMatchException amb) {
                     return PlannerResult.needsInfo(amb.getMessage());
                 } catch (Exception ex) {
-                    return PlannerResult.needsInfo("Khong the thuc hien: " + ex.getMessage());
+                    return PlannerResult.needsInfo("Khong the tra cuu: " + ex.getMessage());
                 }
                 result.addTrace("step." + step + ".result", toolResult);
                 String observation = "Ket qua tu " + stepObj.getBusinessTool() + ": " + objectMapper.valueToTree(toolResult).toString();
@@ -212,30 +133,18 @@ public class PlannerService {
                 continue;
             }
 
-            JsonNode confirmNode = tryParseConfirm(llmReply);
-            if (confirmNode != null) {
-                result.addTrace("step." + step + ".confirm", confirmNode);
-                String hanhDong = confirmNode.path("hanhDong").asText(null);
-                String moTa = confirmNode.path("moTaNgan").asText(null);
-                JsonNode payload = confirmNode.path("payload");
-                if (hanhDong == null || hanhDong.isBlank()) {
-                    return PlannerResult.needsInfo("AI yeu cau xac nhan nhung thieu hanhDong");
-                }
-                return PlannerResult.needsConfirm(hanhDong, moTa, payload);
-            }
-
             String text = extractAnswerText(llmReply);
             result.addTrace("step." + step + ".answer", text);
             return PlannerResult.answer(text);
         }
-        return PlannerResult.answer("Toi da hoan thanh cac buoc kiem tra nhung chua co cau tra loi cuoi. Vui long mo ta lai yeu cau.");
+        return PlannerResult.answer("Toi da tra cuu nhung chua co ket qua cuoi. Vui long mo ta lai yeu cau.");
     }
 
     private List<Message> buildMessages(List<ChatHistoryTurn> history, User user) {
         List<Message> messages = new ArrayList<>();
         String sys = PLANNER_SYSTEM_PROMPT;
         if (user != null && user.getVaiTro() == UserRole.NHAN_VIEN) {
-            sys += "\n\nNguoi dung hien tai la NHAN VIEN. Chi truy cap duoc cac nha tro duoc phan cong. Khong cung cap thong ke tong quan toan he thong.";
+            sys += "\n\nNguoi dung hien tai la NHAN VIEN. Chi truy cap duoc cac nha tro duoc phan cong.";
         }
         messages.add(new SystemMessage(sys));
         if (history != null) {
@@ -266,19 +175,6 @@ public class PlannerService {
             return step;
         } catch (Exception e) {
             log.warn("Khong parse duoc step JSON: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    private JsonNode tryParseConfirm(String text) {
-        if (text == null) return null;
-        Matcher m = CONFIRM_JSON.matcher(text);
-        if (!m.find()) return null;
-        try {
-            JsonNode node = objectMapper.readTree(m.group(1));
-            if (!node.hasNonNull("hanhDong")) return null;
-            return node;
-        } catch (Exception e) {
             return null;
         }
     }

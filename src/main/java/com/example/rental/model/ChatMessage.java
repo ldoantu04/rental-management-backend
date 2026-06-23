@@ -31,17 +31,5 @@ public class ChatMessage {
     @Column(columnDefinition = "TEXT")
     private String duLieuJson;
 
-    private Boolean canXacNhan = false;
-
-    private String hanhDongChoXacNhan;
-
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String payloadHanhDong;
-
-    private Boolean daXuLy = false;
-
-    private String ketQuaHanhDong;
-
     private LocalDateTime ngayTao;
 }

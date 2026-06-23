@@ -1,6 +1,5 @@
 package com.example.rental.service;
 
-import com.example.rental.dto.ChatConfirmRequest;
 import com.example.rental.dto.ChatConversationResponse;
 import com.example.rental.dto.ChatMessageResponse;
 import com.example.rental.dto.ChatSendRequest;
@@ -12,8 +11,6 @@ import java.util.List;
 public interface ChatService {
 
     ChatSendResponse sendMessage(ChatSendRequest req, User user) throws Exception;
-
-    ChatMessageResponse confirmAction(ChatConfirmRequest req, User user) throws Exception;
 
     List<ChatConversationResponse> listConversations(User user);
 

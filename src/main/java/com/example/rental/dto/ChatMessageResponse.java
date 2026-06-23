@@ -12,10 +12,5 @@ public class ChatMessageResponse {
     private ChatMessageRole vaiTro;
     private String noiDung;
     private String duLieuJson;
-    private Boolean canXacNhan;
-    private String hanhDongChoXacNhan;
-    private String payloadHanhDong;
-    private Boolean daXuLy;
-    private String ketQuaHanhDong;
     private LocalDateTime ngayTao;
 }

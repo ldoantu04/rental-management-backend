@@ -1,63 +1,36 @@
 package com.example.rental.service.ai;
 
 import com.example.rental.domain.ContractStatus;
-import com.example.rental.domain.InvoiceStatus;
-import com.example.rental.domain.PaymentMethod;
-import com.example.rental.domain.RoomStatus;
 import com.example.rental.domain.UserRole;
-import com.example.rental.domain.WaterCalculationType;
-import com.example.rental.dto.ContractRequest;
-import com.example.rental.dto.InvoiceRequest;
-import com.example.rental.dto.MotelRequest;
-import com.example.rental.dto.RoomRequest;
-import com.example.rental.dto.TenantRequest;
 import com.example.rental.model.Contract;
 import com.example.rental.model.Invoice;
-import com.example.rental.model.Motel;
 import com.example.rental.model.Room;
 import com.example.rental.model.Tenant;
 import com.example.rental.model.User;
 import com.example.rental.repository.ContractRepository;
-import com.example.rental.service.ContractService;
+import com.example.rental.repository.UserRepository;
 import com.example.rental.service.InvoiceService;
-import com.example.rental.service.MotelService;
-import com.example.rental.service.RoomService;
-import com.example.rental.service.TenantService;
 import com.example.rental.service.UserService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * High-level business operations. Every method is a "Business Tool" that:
- *   1. Resolves human-friendly identifiers (room code, tenant name, ...) to IDs
- *      via {@link ResolverService} -- the LLM never passes an ID.
- *   2. Enforces role-based permissions.
- *   3. Validates business rules.
- *   4. Calls the appropriate domain service in a single transaction.
- *   5. Returns a structured result the Planner can summarise in Vietnamese.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class BusinessToolService {
 
     private final ResolverService resolver;
-    private final RoomService roomService;
-    private final TenantService tenantService;
-    private final ContractService contractService;
     private final ContractRepository contractRepository;
     private final InvoiceService invoiceService;
-    private final MotelService motelService;
     private final UserService userService;
+    private final UserRepository userRepository;
 
     public Map<String, Object> getRoomOverview(JsonNode args, User user) throws Exception {
         String roomCode = text(args, "maPhong");
@@ -111,10 +84,7 @@ public class BusinessToolService {
                 text(args, "sdt"),
                 text(args, "cccd"));
         List<Contract> contracts = new ArrayList<>(
-                contractService.findByTrangThai(ContractStatus.DANG_HIEU_LUC).stream()
-                        .filter(c -> c.getKhachThue() != null
-                                && c.getKhachThue().getId().equals(tenant.getId()))
-                        .toList());
+                contractRepository.findByKhachThueIdAndTrangThai(tenant.getId(), ContractStatus.DANG_HIEU_LUC));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("hoTen", tenant.getHoTen());
@@ -151,394 +121,6 @@ public class BusinessToolService {
         return data;
     }
 
-    public Map<String, Object> createContractForRoom(JsonNode args, User user) throws Exception {
-        Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
-        requireAccessRoom(user, room);
-        if (room.getTrangThai() == RoomStatus.DANG_THUE) {
-            List<Contract> active = contractRepository.findByPhongTroIdAndTrangThai(
-                    room.getId(), ContractStatus.DANG_HIEU_LUC);
-            if (!active.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Phong " + room.getMaPhong() + " dang co hop dong hieu luc. Hay tra phong truoc.");
-            }
-        }
-        if (room.getTrangThai() == RoomStatus.BAO_TRI) {
-            throw new IllegalArgumentException("Phong " + room.getMaPhong() + " dang bao tri");
-        }
-
-        Tenant tenant;
-        if (args.hasNonNull("maKhachThue")) {
-            tenant = tenantService.findById(args.get("maKhachThue").asLong());
-        } else {
-            tenant = resolver.resolveTenant(
-                    text(args, "hoTen"),
-                    text(args, "sdt"),
-                    text(args, "cccd"));
-        }
-
-        LocalDate start = parseDate(args, "ngayBatDau", LocalDate.now());
-        Integer months = args.hasNonNull("soThang") ? args.get("soThang").asInt() : 12;
-        LocalDate end = parseDate(args, "ngayKetThuc", start.plusMonths(months));
-        BigDecimal giaThue = args.hasNonNull("giaThue")
-                ? new BigDecimal(args.get("giaThue").asText())
-                : room.getGiaThue();
-        BigDecimal tienCoc = args.hasNonNull("tienCoc")
-                ? new BigDecimal(args.get("tienCoc").asText())
-                : BigDecimal.ZERO;
-
-        ContractRequest req = new ContractRequest();
-        req.setMaKhachThue(tenant.getId());
-        req.setMaPhongTro(room.getId());
-        req.setNgayBatDau(start);
-        req.setNgayKetThuc(end);
-        req.setGiaThue(giaThue);
-        req.setTienCoc(tienCoc);
-        req.setChuKyThanhToan(1);
-        req.setNgayThanhToan(end.getDayOfMonth());
-
-        Contract created = contractService.createContract(req, user);
-
-        room.setTrangThai(RoomStatus.DANG_THUE);
-        roomService.updateRoom(room.getId(), toRoomRequest(room));
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHopDong", created.getMaHopDong());
-        data.put("phong", room.getMaPhong());
-        data.put("khach", tenant.getHoTen());
-        data.put("ngayBatDau", start);
-        data.put("ngayKetThuc", end);
-        data.put("giaThue", giaThue);
-        return data;
-    }
-
-    public Map<String, Object> renewContract(JsonNode args, User user) throws Exception {
-        Contract contract = resolver.resolveContractByCode(text(args, "maHopDong"));
-        if (contract.getTrangThai() != ContractStatus.DANG_HIEU_LUC) {
-            throw new IllegalArgumentException(
-                    "Hop dong " + contract.getMaHopDong() + " khong o trang thai hieu luc");
-        }
-        Integer months = args.hasNonNull("soThang") ? args.get("soThang").asInt() : 12;
-        LocalDate base = contract.getNgayKetThuc() != null && contract.getNgayKetThuc().isAfter(LocalDate.now())
-                ? contract.getNgayKetThuc()
-                : LocalDate.now();
-        LocalDate newEnd = base.plusMonths(months);
-
-        ContractRequest req = new ContractRequest();
-        req.setMaKhachThue(contract.getKhachThue().getId());
-        req.setMaPhongTro(contract.getPhongTro().getId());
-        req.setNgayBatDau(contract.getNgayBatDau());
-        req.setNgayKetThuc(newEnd);
-        req.setGiaThue(contract.getGiaThue());
-        req.setTienCoc(contract.getTienCoc());
-        req.setChuKyThanhToan(contract.getChuKyThanhToan());
-        req.setNgayThanhToan(contract.getNgayThanhToan());
-
-        Contract updated = contractService.updateContract(contract.getId(), req, user);
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHopDong", updated.getMaHopDong());
-        data.put("ngayKetThucCu", contract.getNgayKetThuc());
-        data.put("ngayKetThucMoi", newEnd);
-        data.put("soThangGiaHan", months);
-        return data;
-    }
-
-    public Map<String, Object> extendContract(JsonNode args, User user) throws Exception {
-        return renewContract(args, user);
-    }
-
-    public Map<String, Object> terminateContract(JsonNode args, User user) throws Exception {
-        Contract contract = resolver.resolveContractByCode(text(args, "maHopDong"));
-        String lyDo = text(args, "lyDo");
-        if (lyDo == null) lyDo = "Tra phong theo yeu cau AI";
-        contractService.cancelContract(contract.getId(), lyDo, user);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHopDong", contract.getMaHopDong());
-        data.put("lyDo", lyDo);
-        return data;
-    }
-
-    public Map<String, Object> closeContract(JsonNode args, User user) throws Exception {
-        return terminateContract(args, user);
-    }
-
-    public Map<String, Object> checkoutTenant(JsonNode args, User user) throws Exception {
-        Contract contract;
-        if (args.hasNonNull("maHopDong")) {
-            contract = resolver.resolveContractByCode(args.get("maHopDong").asText());
-        } else {
-            Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
-            contract = resolver.resolveCurrentContract(room);
-        }
-        String lyDo = text(args, "lyDo");
-        if (lyDo == null) lyDo = "Tra phong theo yeu cau";
-        contractService.cancelContract(contract.getId(), lyDo, user);
-
-        Room room = contract.getPhongTro();
-        if (room != null) {
-            room.setTrangThai(RoomStatus.TRONG);
-            roomService.updateRoom(room.getId(), toRoomRequest(room));
-        }
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHopDong", contract.getMaHopDong());
-        data.put("phong", room != null ? room.getMaPhong() : "N/A");
-        data.put("trangThaiPhongMoi", room != null ? room.getTrangThai() : null);
-        return data;
-    }
-
-    public Map<String, Object> createInvoiceForRoom(JsonNode args, User user) throws Exception {
-        Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
-        requireAccessRoom(user, room);
-        Contract contract = resolver.resolveCurrentContract(room);
-
-        InvoiceRequest req = new InvoiceRequest();
-        req.setMaHopDong(contract.getId());
-
-        if (args.hasNonNull("kyHoaDon")) {
-            req.setKyHoaDon(DateTimeNormalizer.parseMonth(args.get("kyHoaDon").asText()));
-        } else {
-            Invoice latest = resolver.findLatestInvoice(contract);
-            req.setKyHoaDon(latest != null && latest.getKyHoaDon() != null
-                    ? latest.getKyHoaDon().plusMonths(1)
-                    : LocalDate.now().withDayOfMonth(1));
-        }
-
-        Invoice latest = resolver.findLatestInvoice(contract);
-        int dienCu = latest != null && latest.getChiSoDienMoi() != null ? latest.getChiSoDienMoi() : 0;
-        int nuocCu = latest != null && latest.getChiSoNuocMoi() != null ? latest.getChiSoNuocMoi() : 0;
-        req.setChiSoDienCu(dienCu);
-        req.setChiSoNuocCu(nuocCu);
-
-        // Resolve water calculation mode from contract (preferred) or args.
-        WaterCalculationType kieuTinhNuoc = contract.getKieuTinhNuoc() != null
-                ? contract.getKieuTinhNuoc()
-                : WaterCalculationType.CHI_SO;
-        if (args.hasNonNull("kieuTinhNuoc")) {
-            kieuTinhNuoc = WaterCalculationType.valueOf(args.get("kieuTinhNuoc").asText());
-        } else if (latest != null && latest.getKieuTinhNuoc() != null) {
-            kieuTinhNuoc = latest.getKieuTinhNuoc();
-        }
-        req.setKieuTinhNuoc(kieuTinhNuoc);
-
-        // ----- Validate required readings based on the contract configuration -----
-        // Electricity is always billed by meter reading in this system.
-        if (args.hasNonNull("chiSoDienMoi")) {
-            req.setChiSoDienMoi(args.get("chiSoDienMoi").asInt());
-        } else {
-            throw new IllegalArgumentException("Can cung cap chiSoDienMoi");
-        }
-        // Water reading is only required when billed by meter.
-        if (kieuTinhNuoc == WaterCalculationType.CHI_SO) {
-            if (args.hasNonNull("chiSoNuocMoi")) {
-                req.setChiSoNuocMoi(args.get("chiSoNuocMoi").asInt());
-            } else {
-                throw new IllegalArgumentException("Can cung cap chiSoNuocMoi");
-            }
-        } else {
-            // Flat / per-person billing -> no meter reading needed.
-            if (args.hasNonNull("chiSoNuocMoi")) {
-                req.setChiSoNuocMoi(args.get("chiSoNuocMoi").asInt());
-            }
-        }
-
-        if (args.hasNonNull("giaDien")) {
-            req.setGiaDien(new BigDecimal(args.get("giaDien").asText()));
-        } else if (latest != null && latest.getGiaDien() != null) {
-            req.setGiaDien(latest.getGiaDien());
-        }
-        if (args.hasNonNull("giaNuoc")) {
-            req.setGiaNuoc(new BigDecimal(args.get("giaNuoc").asText()));
-        } else if (latest != null && latest.getGiaNuoc() != null) {
-            req.setGiaNuoc(latest.getGiaNuoc());
-        }
-        if (args.hasNonNull("tienPhong")) {
-            req.setTienPhong(new BigDecimal(args.get("tienPhong").asText()));
-        } else {
-            req.setTienPhong(contract.getGiaThue() != null ? contract.getGiaThue() : room.getGiaThue());
-        }
-        if (args.hasNonNull("hanThanhToan")) {
-            req.setHanThanhToan(DateTimeNormalizer.parse(args.get("hanThanhToan").asText()));
-        } else {
-            req.setHanThanhToan(req.getKyHoaDon().plusDays(10));
-        }
-        if (args.hasNonNull("ghiChu")) {
-            req.setGhiChu(args.get("ghiChu").asText());
-        }
-
-        Invoice created = invoiceService.createInvoice(req, user);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHoaDon", created.getMaHoaDon());
-        data.put("phong", room.getMaPhong());
-        data.put("kyHoaDon", created.getKyHoaDon());
-        data.put("chiSoDienCu", created.getChiSoDienCu());
-        data.put("chiSoDienMoi", created.getChiSoDienMoi());
-        data.put("chiSoNuocCu", created.getChiSoNuocCu());
-        data.put("chiSoNuocMoi", created.getChiSoNuocMoi());
-        data.put("giaDien", created.getGiaDien());
-        data.put("giaNuoc", created.getGiaNuoc());
-        data.put("tienPhong", created.getTienPhong());
-        data.put("tongTien", created.getTongTien());
-        data.put("hanThanhToan", created.getHanThanhToan());
-        data.put("soDong", created.getDanhSachDichVu() != null ? created.getDanhSachDichVu().size() : 0);
-        return data;
-    }
-
-    public Map<String, Object> calculateInvoice(JsonNode args, User user) throws Exception {
-        Contract contract;
-        if (args.hasNonNull("maHopDong")) {
-            contract = resolver.resolveContractByCode(args.get("maHopDong").asText());
-        } else {
-            Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
-            contract = resolver.resolveCurrentContract(room);
-        }
-        InvoiceRequest req = new InvoiceRequest();
-        req.setMaHopDong(contract.getId());
-        if (args.hasNonNull("chiSoDienMoi")) req.setChiSoDienMoi(args.get("chiSoDienMoi").asInt());
-        if (args.hasNonNull("chiSoNuocMoi")) req.setChiSoNuocMoi(args.get("chiSoNuocMoi").asInt());
-        if (args.hasNonNull("giaDien")) req.setGiaDien(new BigDecimal(args.get("giaDien").asText()));
-        if (args.hasNonNull("giaNuoc")) req.setGiaNuoc(new BigDecimal(args.get("giaNuoc").asText()));
-        if (args.hasNonNull("kieuTinhNuoc")) req.setKieuTinhNuoc(WaterCalculationType.valueOf(args.get("kieuTinhNuoc").asText()));
-        if (args.hasNonNull("tienPhong")) req.setTienPhong(new BigDecimal(args.get("tienPhong").asText()));
-        else req.setTienPhong(contract.getGiaThue() != null ? contract.getGiaThue() : contract.getPhongTro().getGiaThue());
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("tienPhong", req.getTienPhong());
-        data.put("tienDien", invoiceService.computeElectricAmount(contract, req));
-        data.put("tienNuoc", invoiceService.computeWaterAmount(contract, req));
-        data.put("tienDichVu", invoiceService.computeServiceAmount(req));
-        data.put("tong", invoiceService.computeTotal(contract, req));
-        return data;
-    }
-
-    public Map<String, Object> collectPayment(JsonNode args, User user) throws Exception {
-        Invoice invoice = resolver.resolveInvoice(text(args, "maHoaDon"));
-        if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) {
-            throw new IllegalArgumentException("Hoa don " + invoice.getMaHoaDon() + " da duoc thanh toan");
-        }
-        Invoice paid = invoiceService.markAsPaid(invoice.getId(), user);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHoaDon", paid.getMaHoaDon());
-        data.put("tongTien", paid.getTongTien());
-        data.put("trangThaiMoi", paid.getTrangThai());
-        return data;
-    }
-
-    public Map<String, Object> createMotel(JsonNode args, User user) throws Exception {
-        if (user == null || user.getVaiTro() != UserRole.QUAN_LY) {
-            throw new IllegalArgumentException("Chi quan ly moi co quyen tao nha tro");
-        }
-        MotelRequest req = new MotelRequest();
-        if (args.hasNonNull("tenTro")) req.setTenTro(args.get("tenTro").asText());
-        if (args.hasNonNull("diaChi")) req.setDiaChi(args.get("diaChi").asText());
-        if (args.hasNonNull("soTang")) req.setSoTang(args.get("soTang").asInt());
-        if (args.hasNonNull("tongPhong")) req.setTongPhong(args.get("tongPhong").asInt());
-        if (args.hasNonNull("ghiChu")) req.setGhiChu(args.get("ghiChu").asText());
-        if (req.getTenTro() == null || req.getTenTro().isBlank()) {
-            throw new IllegalArgumentException("Thieu ten nha tro");
-        }
-        Motel created = motelService.createMotel(req, user);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", created.getId());
-        data.put("tenTro", created.getTenTro());
-        data.put("diaChi", created.getDiaChi());
-        return data;
-    }
-
-    public Map<String, Object> createRoom(JsonNode args, User user) throws Exception {
-        RoomRequest req = new RoomRequest();
-        if (args.hasNonNull("maPhong")) req.setMaPhong(args.get("maPhong").asText());
-        if (args.hasNonNull("maNhaTro")) req.setMaNhaTro(args.get("maNhaTro").asLong());
-        if (args.hasNonNull("tenNhaTro")) {
-            Motel motel = resolver.resolveMotel(args.get("tenNhaTro").asText());
-            req.setMaNhaTro(motel.getId());
-        }
-        if (args.hasNonNull("giaThue")) req.setGiaThue(new BigDecimal(args.get("giaThue").asText()));
-        if (args.hasNonNull("dienTich")) req.setDienTich(new BigDecimal(args.get("dienTich").asText()));
-        if (args.hasNonNull("soNguoi")) req.setSoNguoi(args.get("soNguoi").asInt());
-        if (args.hasNonNull("tang")) req.setTang(args.get("tang").asInt());
-        if (args.hasNonNull("ghiChu")) req.setGhiChu(args.get("ghiChu").asText());
-        if (req.getMaNhaTro() == null) throw new IllegalArgumentException("Thieu nha tro");
-        if (req.getMaPhong() == null || req.getMaPhong().isBlank()) throw new IllegalArgumentException("Thieu ma phong");
-        if (req.getGiaThue() == null) throw new IllegalArgumentException("Thieu gia thue");
-        Room created = roomService.createRoom(req, user);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", created.getId());
-        data.put("maPhong", created.getMaPhong());
-        data.put("nhaTro", created.getNhaTro() != null ? created.getNhaTro().getTenTro() : null);
-        return data;
-    }
-
-    public Map<String, Object> createTenant(JsonNode args, User user) throws Exception {
-        TenantRequest req = new TenantRequest();
-        if (args.hasNonNull("hoTen")) req.setHoTen(args.get("hoTen").asText());
-        if (args.hasNonNull("ngaySinh")) req.setNgaySinh(DateTimeNormalizer.parse(args.get("ngaySinh").asText()));
-        if (args.hasNonNull("gioiTinh")) req.setGioiTinh(com.example.rental.domain.Gender.valueOf(args.get("gioiTinh").asText()));
-        if (args.hasNonNull("cccd")) req.setCccd(args.get("cccd").asText());
-        if (args.hasNonNull("sdt")) req.setSdt(args.get("sdt").asText());
-        if (args.hasNonNull("email")) req.setEmail(args.get("email").asText());
-        if (args.hasNonNull("diaChi")) req.setDiaChi(args.get("diaChi").asText());
-        if (args.hasNonNull("ghiChu")) req.setGhiChu(args.get("ghiChu").asText());
-        if (req.getHoTen() == null || req.getHoTen().isBlank()) {
-            throw new IllegalArgumentException("Thieu ho ten khach thue");
-        }
-        Tenant created = tenantService.createTenant(req);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", created.getId());
-        data.put("hoTen", created.getHoTen());
-        return data;
-    }
-
-    public Map<String, Object> assignTenantToRoom(JsonNode args, User user) throws Exception {
-        return createContractForRoom(args, user);
-    }
-
-    public Map<String, Object> moveTenant(JsonNode args, User user) throws Exception {
-        if (!args.hasNonNull("maHopDong")) {
-            throw new IllegalArgumentException("Can chi ro ma hop dong can chuyen phong");
-        }
-        Contract old = resolver.resolveContractByCode(args.get("maHopDong").asText());
-        Room newRoom = resolver.resolveRoom(text(args, "maPhongMoi"), text(args, "tenNhaTroMoi"));
-        if (newRoom.getTrangThai() == RoomStatus.DANG_THUE) {
-            throw new IllegalArgumentException("Phong moi dang co nguoi thue");
-        }
-        contractService.cancelContract(old.getId(), "Chuyen sang phong " + newRoom.getMaPhong(), user);
-
-        ContractRequest req = new ContractRequest();
-        req.setMaKhachThue(old.getKhachThue().getId());
-        req.setMaPhongTro(newRoom.getId());
-        req.setNgayBatDau(LocalDate.now());
-        req.setNgayKetThuc(old.getNgayKetThuc() != null && old.getNgayKetThuc().isAfter(LocalDate.now())
-                ? old.getNgayKetThuc() : LocalDate.now().plusMonths(12));
-        req.setGiaThue(newRoom.getGiaThue());
-        req.setTienCoc(old.getTienCoc());
-        req.setChuKyThanhToan(old.getChuKyThanhToan());
-        req.setNgayThanhToan(old.getNgayThanhToan());
-        Contract created = contractService.createContract(req, user);
-
-        Room oldRoom = old.getPhongTro();
-        if (oldRoom != null) {
-            oldRoom.setTrangThai(RoomStatus.TRONG);
-            roomService.updateRoom(oldRoom.getId(), toRoomRequest(oldRoom));
-        }
-        newRoom.setTrangThai(RoomStatus.DANG_THUE);
-        roomService.updateRoom(newRoom.getId(), toRoomRequest(newRoom));
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("khach", old.getKhachThue().getHoTen());
-        data.put("phongCu", oldRoom != null ? oldRoom.getMaPhong() : "N/A");
-        data.put("phongMoi", newRoom.getMaPhong());
-        data.put("maHopDongMoi", created.getMaHopDong());
-        return data;
-    }
-
-    public Map<String, Object> generateInvoiceForMonth(JsonNode args, User user) throws Exception {
-        return createInvoiceForRoom(args, user);
-    }
-
-    // ====================================================================
-    //  Read-only: list occupants / contracts / find room of a tenant
-    // ====================================================================
-
     public Map<String, Object> getActiveTenants(JsonNode args, User user) throws Exception {
         String motelName = text(args, "tenNhaTro");
         Long motelIdFilter = null;
@@ -546,7 +128,9 @@ public class BusinessToolService {
             motelIdFilter = resolver.resolveMotel(motelName).getId();
         }
 
-        List<Contract> all = contractService.findByTrangThai(ContractStatus.DANG_HIEU_LUC);
+        List<Contract> all = contractRepository.findAll().stream()
+                .filter(c -> c.getTrangThai() == ContractStatus.DANG_HIEU_LUC)
+                .toList();
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Contract c : all) {
@@ -659,76 +243,17 @@ public class BusinessToolService {
         return data;
     }
 
-    // ====================================================================
-    //  Mutations
-    // ====================================================================
-
-    public Map<String, Object> updateInvoice(JsonNode args, User user) throws Exception {
-        Invoice invoice = resolver.resolveInvoice(text(args, "maHoaDon"));
-        if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) {
-            throw new IllegalArgumentException("Hoa don da thanh toan, khong the cap nhat");
-        }
-        InvoiceRequest req = new InvoiceRequest();
-        req.setMaHopDong(invoice.getHopDong() != null ? invoice.getHopDong().getId() : null);
-        req.setKyHoaDon(args.hasNonNull("kyHoaDon")
-                ? DateTimeNormalizer.parseMonth(args.get("kyHoaDon").asText())
-                : invoice.getKyHoaDon());
-        req.setChiSoDienCu(args.hasNonNull("chiSoDienCu") ? args.get("chiSoDienCu").asInt() : invoice.getChiSoDienCu());
-        req.setChiSoDienMoi(args.hasNonNull("chiSoDienMoi") ? args.get("chiSoDienMoi").asInt() : invoice.getChiSoDienMoi());
-        req.setGiaDien(args.hasNonNull("giaDien")
-                ? new BigDecimal(args.get("giaDien").asText())
-                : invoice.getGiaDien());
-        req.setChiSoNuocCu(args.hasNonNull("chiSoNuocCu") ? args.get("chiSoNuocCu").asInt() : invoice.getChiSoNuocCu());
-        req.setChiSoNuocMoi(args.hasNonNull("chiSoNuocMoi") ? args.get("chiSoNuocMoi").asInt() : invoice.getChiSoNuocMoi());
-        req.setGiaNuoc(args.hasNonNull("giaNuoc")
-                ? new BigDecimal(args.get("giaNuoc").asText())
-                : invoice.getGiaNuoc());
-        if (args.hasNonNull("kieuTinhNuoc")) {
-            req.setKieuTinhNuoc(WaterCalculationType.valueOf(args.get("kieuTinhNuoc").asText()));
+    public Map<String, Object> calculateInvoice(JsonNode args, User user) throws Exception {
+        Contract contract;
+        if (args.hasNonNull("maHopDong")) {
+            contract = resolver.resolveContractByCode(args.get("maHopDong").asText());
         } else {
-            req.setKieuTinhNuoc(invoice.getKieuTinhNuoc());
+            Room room = resolver.resolveRoom(text(args, "maPhong"), text(args, "tenNhaTro"));
+            contract = resolver.resolveCurrentContract(room);
         }
-        req.setTienPhong(args.hasNonNull("tienPhong")
-                ? new BigDecimal(args.get("tienPhong").asText())
-                : invoice.getTienPhong());
-        req.setHanThanhToan(args.hasNonNull("hanThanhToan")
-                ? DateTimeNormalizer.parse(args.get("hanThanhToan").asText())
-                : invoice.getHanThanhToan());
-        if (args.hasNonNull("ghiChu")) req.setGhiChu(args.get("ghiChu").asText());
-
-        Invoice updated = invoiceService.updateInvoice(invoice.getId(), req, user);
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHoaDon", updated.getMaHoaDon());
-        data.put("tongTien", updated.getTongTien());
-        data.put("trangThai", updated.getTrangThai());
+        data.put("giaThue", contract.getGiaThue() != null ? contract.getGiaThue() : contract.getPhongTro().getGiaThue());
         return data;
-    }
-
-    public Map<String, Object> deleteInvoice(JsonNode args, User user) throws Exception {
-        Invoice invoice = resolver.resolveInvoice(text(args, "maHoaDon"));
-        if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) {
-            throw new IllegalArgumentException("Hoa don da thanh toan, khong the xoa");
-        }
-        invoiceService.deleteInvoice(invoice.getId());
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("maHoaDon", invoice.getMaHoaDon());
-        data.put("xoa", true);
-        return data;
-    }
-
-    public Map<String, Object> createInvoiceByRoom(JsonNode args, User user) throws Exception {
-        // Stronger alias: identical to createInvoiceForRoom but the LLM is told
-        // explicitly that the room is the only required handle. Meter readings and
-        // kỳ hóa đơn are still asked from the user.
-        return createInvoiceForRoom(args, user);
-    }
-
-    public Map<String, Object> createTransactionForInvoice(JsonNode args, User user) throws Exception {
-        Invoice invoice = resolver.resolveInvoice(text(args, "maHoaDon"));
-        if (invoice.getTrangThai() == InvoiceStatus.DA_THANH_TOAN) {
-            throw new IllegalArgumentException("Hoa don da duoc thanh toan");
-        }
-        return collectPayment(args, user);
     }
 
     private void requireAccessRoom(User user, Room room) throws Exception {
@@ -743,28 +268,75 @@ public class BusinessToolService {
         }
     }
 
-    private RoomRequest toRoomRequest(Room r) {
-        RoomRequest req = new RoomRequest();
-        if (r.getNhaTro() != null) req.setMaNhaTro(r.getNhaTro().getId());
-        req.setMaPhong(r.getMaPhong());
-        req.setGiaThue(r.getGiaThue());
-        req.setDienTich(r.getDienTich());
-        req.setSoNguoi(r.getSoNguoi());
-        req.setTang(r.getTang());
-        req.setGhiChu(r.getGhiChu());
-        return req;
+    public Map<String, Object> getEmployeeOverview(JsonNode args, User user) throws Exception {
+        if (user == null || user.getVaiTro() != UserRole.QUAN_LY) {
+            throw new IllegalArgumentException("Chi quan ly moi co quyen tra cuu thong tin nhan vien.");
+        }
+        String keyword = text(args, "tuKhoa");
+        List<User> employees = userRepository.searchEmployees(keyword, UserRole.NHAN_VIEN, null);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("tongSoNhanVien", employees.size());
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (User emp : employees) {
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("hoTen", emp.getHoTen());
+            e.put("email", emp.getEmail());
+            e.put("sdt", emp.getSdt());
+            e.put("vaiTro", emp.getVaiTro());
+            e.put("trangThai", emp.getTrangThai());
+            if (emp.getAssignedMotels() != null && !emp.getAssignedMotels().isEmpty()) {
+                List<String> motelNames = emp.getAssignedMotels().stream()
+                        .map(m -> m.getTenTro())
+                        .toList();
+                e.put("nhaTroPhuTrach", motelNames);
+            }
+            list.add(e);
+        }
+        data.put("danhSach", list);
+        return data;
+    }
+
+    public Map<String, Object> getUserOverview(JsonNode args, User user) throws Exception {
+        if (user == null || user.getVaiTro() != UserRole.QUAN_LY) {
+            throw new IllegalArgumentException("Chi quan ly moi co quyen tra cuu danh sach tai khoan.");
+        }
+        String keyword = text(args, "tuKhoa");
+        String vaiTroStr = text(args, "vaiTro");
+        UserRole vaiTro = null;
+        if (vaiTroStr != null && !vaiTroStr.isBlank()) {
+            try {
+                vaiTro = UserRole.valueOf(vaiTroStr.toUpperCase());
+            } catch (Exception ignored) {}
+        }
+        List<User> users = userRepository.searchEmployees(keyword, vaiTro, null);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("tongSo", users.size());
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (User u : users) {
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("hoTen", u.getHoTen());
+            e.put("username", u.getUsername());
+            e.put("email", u.getEmail());
+            e.put("sdt", u.getSdt());
+            e.put("vaiTro", u.getVaiTro());
+            e.put("trangThai", u.getTrangThai());
+            if (u.getAssignedMotels() != null && !u.getAssignedMotels().isEmpty()) {
+                List<String> motelNames = u.getAssignedMotels().stream()
+                        .map(m -> m.getTenTro())
+                        .toList();
+                e.put("nhaTroPhuTrach", motelNames);
+            }
+            list.add(e);
+        }
+        data.put("danhSach", list);
+        return data;
     }
 
     private static String text(JsonNode n, String field) {
         if (n == null || !n.hasNonNull(field)) return null;
         String v = n.get(field).asText();
         return (v == null || v.isBlank()) ? null : v;
-    }
-
-    private static LocalDate parseDate(JsonNode n, String field, LocalDate fallback) {
-        if (n != null && n.hasNonNull(field)) {
-            return DateTimeNormalizer.parse(n.get(field).asText());
-        }
-        return fallback;
     }
 }
