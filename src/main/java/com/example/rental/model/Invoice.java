@@ -47,6 +47,8 @@ public class Invoice {
 
     private BigDecimal tongTien;
 
+    private BigDecimal phiPhat;
+
     private LocalDate hanThanhToan;
 
     @Enumerated(EnumType.STRING)

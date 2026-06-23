@@ -22,6 +22,7 @@ public class InvoiceRequest {
     private WaterCalculationType kieuTinhNuoc;
     private BigDecimal tienPhong;
     private BigDecimal tongTien;
+    private BigDecimal phiPhat;
     private LocalDate hanThanhToan;
     private InvoiceStatus trangThai;
     private String ghiChu;

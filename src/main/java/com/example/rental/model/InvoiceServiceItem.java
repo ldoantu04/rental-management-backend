@@ -20,10 +20,6 @@ public class InvoiceServiceItem {
     @JsonIgnore
     private Invoice hoaDon;
 
-    @ManyToOne
-    @JoinColumn(name = "maDichVu")
-    private Service danhMucDichVu;
-
     private String tenDichVu;
 
     private String kieuTinh;
@@ -35,4 +31,7 @@ public class InvoiceServiceItem {
     private BigDecimal thanhTien;
 
     private Boolean laTuHopDong = true;
+    private Integer chiSoDau;
+    private Integer chiSoCuoi;
+    private String loaiDichVu; // DIEN, NUOC, PHONG, DICH_VU
 }

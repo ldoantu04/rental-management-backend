@@ -1,5 +1,6 @@
 package com.example.rental.controller;
 
+import com.example.rental.domain.UserRole;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.MotelRequest;
 import com.example.rental.model.Motel;
@@ -25,6 +26,9 @@ public class MotelController {
             @RequestBody MotelRequest req,
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findByJwt(jwt);
+        if (user.getVaiTro() == UserRole.NHAN_VIEN) {
+            throw new Exception("Ban khong co quyen tao nha tro");
+        }
         Motel motel = motelService.createMotel(req, user);
         return ResponseEntity.ok(motel);
     }
@@ -32,13 +36,24 @@ public class MotelController {
     @PutMapping("/{id}")
     public ResponseEntity<Motel> updateMotel(
             @PathVariable Long id,
-            @RequestBody MotelRequest req) throws Exception {
+            @RequestBody MotelRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        if (user.getVaiTro() == UserRole.NHAN_VIEN) {
+            throw new Exception("Ban khong co quyen cap nhat nha tro");
+        }
         Motel motel = motelService.updateMotel(id, req);
         return ResponseEntity.ok(motel);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse> deleteMotel(@PathVariable Long id) throws Exception {
+    public ResponseEntity<ApiResponse> deleteMotel(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        if (user.getVaiTro() == UserRole.NHAN_VIEN) {
+            throw new Exception("Ban khong co quyen xoa nha tro");
+        }
         motelService.deleteMotel(id);
         ApiResponse res = new ApiResponse();
         res.setMessage("Xoa nha tro thanh cong");

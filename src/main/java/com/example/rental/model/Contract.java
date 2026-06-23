@@ -1,6 +1,7 @@
 package com.example.rental.model;
 
 import com.example.rental.domain.ContractStatus;
+import com.example.rental.domain.WaterCalculationType;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -39,15 +40,22 @@ public class Contract {
 
     private BigDecimal giaThue;
 
+    /** Default electricity price (VND / kWh) agreed in this contract. */
+    @Column(precision = 18, scale = 2)
+    private BigDecimal giaDien;
+
+    /** Default water price (VND / m3 or VND / month depending on kieuTinhNuoc). */
+    @Column(precision = 18, scale = 2)
+    private BigDecimal giaNuoc;
+
+    @Enumerated(EnumType.STRING)
+    private WaterCalculationType kieuTinhNuoc = WaterCalculationType.CHI_SO;
+
     private Integer chuKyThanhToan;
 
     private Integer ngayThanhToan;
 
     private String dieuKhoan;
-
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String dichVu;
 
     private String fileHopDong;
 
@@ -67,7 +75,7 @@ public class Contract {
 
     private LocalDateTime ngaySua;
 
-    @OneToMany(mappedBy = "hopDong", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "hopDong", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ContractServiceItem> danhSachDichVu = new ArrayList<>();
 
     @Transient

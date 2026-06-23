@@ -45,16 +45,22 @@ public class InvoiceController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse> deleteInvoice(@PathVariable Long id) throws Exception {
-        invoiceService.deleteInvoice(id);
+    public ResponseEntity<ApiResponse> deleteInvoice(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        invoiceService.deleteInvoice(id, user);
         ApiResponse res = new ApiResponse();
         res.setMessage("Xoa hoa don thanh cong");
         return ResponseEntity.ok(res);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Invoice> getInvoiceById(@PathVariable Long id) throws Exception {
-        Invoice invoice = invoiceService.findById(id);
+    public ResponseEntity<Invoice> getInvoiceById(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        Invoice invoice = invoiceService.findById(id, user);
         return ResponseEntity.ok(invoice);
     }
 
@@ -65,14 +71,19 @@ public class InvoiceController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Invoice>> getAllInvoices() {
-        List<Invoice> invoices = invoiceService.findAll();
+    public ResponseEntity<List<Invoice>> getAllInvoices(
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Invoice> invoices = invoiceService.findAll(user);
         return ResponseEntity.ok(invoices);
     }
 
     @GetMapping("/contract/{hopDongId}")
-    public ResponseEntity<List<Invoice>> getInvoicesByContract(@PathVariable Long hopDongId) {
-        List<Invoice> invoices = invoiceService.findByHopDongId(hopDongId);
+    public ResponseEntity<List<Invoice>> getInvoicesByContract(
+            @PathVariable Long hopDongId,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Invoice> invoices = invoiceService.findByHopDongId(hopDongId, user);
         return ResponseEntity.ok(invoices);
     }
 
@@ -88,8 +99,10 @@ public class InvoiceController {
     @GetMapping("/search")
     public ResponseEntity<List<Invoice>> searchInvoices(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) InvoiceStatus trangThai) {
-        List<Invoice> invoices = invoiceService.search(keyword, trangThai);
+            @RequestParam(required = false) InvoiceStatus trangThai,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Invoice> invoices = invoiceService.search(keyword, trangThai, user);
         return ResponseEntity.ok(invoices);
     }
 
@@ -103,14 +116,29 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) throws Exception {
-        Invoice invoice = invoiceService.findById(id);
+    public ResponseEntity<byte[]> downloadInvoicePdf(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        Invoice invoice = invoiceService.findById(id, user);
         byte[] pdf = invoicePdfService.generate(invoice);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         String safeCode = (invoice.getMaHoaDon() == null ? "hoa-don" : invoice.getMaHoaDon()).replaceAll("[^\\w\\-]", "_");
         headers.setContentDispositionFormData("attachment", safeCode + ".pdf");
         headers.setCacheControl("must-revalidate, no-store");
+        return new ResponseEntity<>(pdf, headers, 200);
+    }
+
+    @GetMapping("/public/{maHoaDon}/pdf")
+    public ResponseEntity<byte[]> viewInvoicePdfPublic(@PathVariable String maHoaDon) throws Exception {
+        Invoice invoice = invoiceService.findByMaHoaDon(maHoaDon);
+        byte[] pdf = invoicePdfService.generate(invoice);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        String safeCode = invoice.getMaHoaDon() == null ? "hoa-don" : invoice.getMaHoaDon().replaceAll("[^\\w\\-]", "_");
+        headers.setContentDispositionFormData("inline", safeCode + ".pdf");
+        headers.setCacheControl("no-store, no-cache");
         return new ResponseEntity<>(pdf, headers, 200);
     }
 }

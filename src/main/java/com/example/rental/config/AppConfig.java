@@ -28,6 +28,7 @@ public class AppConfig {
                         .requestMatchers("/payment/**").permitAll()
                         .requestMatchers("/pay/**").permitAll()
                         .requestMatchers("/api/payment/**").permitAll()
+                        .requestMatchers("/api/invoices/public/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()

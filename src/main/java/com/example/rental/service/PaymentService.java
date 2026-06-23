@@ -13,7 +13,9 @@ import com.example.rental.model.User;
 import com.example.rental.repository.InvoiceRepository;
 import com.example.rental.repository.TransactionRepository;
 import com.example.rental.repository.UserRepository;
+import com.example.rental.service.EmailTemplateService;
 import com.example.rental.service.NotificationService;
+import com.example.rental.service.SystemSettingService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +47,14 @@ public class PaymentService {
     private final TransactionRepository transactionRepository;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final EmailTemplateService emailTemplateService;
+    private final SystemSettingService systemSettingService;
+
+    private static final String TEMPLATE_PAYMENT_CONFIRM = "XAC_NHAN_TT";
+    private static final java.text.NumberFormat MONEY_FMT =
+            java.text.NumberFormat.getInstance(new java.util.Locale("vi", "VN"));
+    private static final java.time.format.DateTimeFormatter DATE_FMT =
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public static class PaymentResult {
         private final String code;
@@ -169,6 +179,9 @@ public class PaymentService {
         log.info("IPN thanh cong: hoa don {} da duoc cap nhat PAID", invoice.getMaHoaDon());
         User owner = resolveOwner(invoice);
         notificationService.notifyInvoicePaid(owner, invoice.getId(), "VNPay");
+        if (systemSettingService.isAutoSendPaymentConfirmationEmail()) {
+            sendPaymentConfirmationEmail(invoice, "VNPay");
+        }
     }
 
     @Transactional
@@ -257,5 +270,29 @@ public class PaymentService {
         }
         List<User> users = userRepository.findAll();
         return users.isEmpty() ? null : users.get(0);
+    }
+
+    private void sendPaymentConfirmationEmail(Invoice invoice, String method) {
+        try {
+            com.example.rental.model.Contract contract = invoice.getHopDong();
+            com.example.rental.model.Tenant tenant = contract != null ? contract.getKhachThue() : null;
+            com.example.rental.model.Room room = contract != null ? contract.getPhongTro() : null;
+
+            if (tenant == null || tenant.getEmail() == null || tenant.getEmail().isBlank()) {
+                return;
+            }
+
+            java.util.Map<String, String> vars = new java.util.HashMap<>();
+            vars.put("tenant_name", tenant.getHoTen() != null ? tenant.getHoTen() : "Quy khach");
+            vars.put("room", room != null ? room.getMaPhong() : "-");
+            vars.put("property", (room != null && room.getNhaTro() != null) ? room.getNhaTro().getTenTro() : "-");
+            vars.put("amount", invoice.getTongTien() != null ? MONEY_FMT.format(invoice.getTongTien()) : "0");
+            vars.put("payment_method", method != null ? method : "Thanh toan");
+            vars.put("payment_date", LocalDateTime.now().format(DATE_FMT));
+
+            emailTemplateService.sendWithTemplate(TEMPLATE_PAYMENT_CONFIRM, tenant.getEmail(), vars);
+        } catch (Exception e) {
+            log.error("Loi gui email xac nhan thanh toan: {}", e.getMessage());
+        }
     }
 }

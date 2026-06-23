@@ -2,7 +2,7 @@ package com.example.rental.model;
 
 import com.example.rental.domain.Gender;
 import com.example.rental.domain.TenantStatus;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -48,7 +48,7 @@ public class Tenant {
 
     @ManyToOne
     @JoinColumn(name = "maPhongTro")
-    @JsonIgnore
+    @JsonIgnoreProperties({"khachThue", "nhaTro", "danhSachNguoiOCung"})
     private Room phongTro;
 
     private LocalDate ngayBatDauThue;

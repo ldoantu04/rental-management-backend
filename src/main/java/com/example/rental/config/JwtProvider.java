@@ -17,7 +17,7 @@ import java.util.Set;
 public class JwtProvider {
     SecretKey key = Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
 
-    public String generateToken(Authentication auth) {
+    public String generateToken(Authentication auth, Long userId, Set<Long> motelIds) {
         Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
         String roles = populateAuthorities(authorities);
 
@@ -26,6 +26,8 @@ public class JwtProvider {
                 .setExpiration(new Date(new Date().getTime() + 86400000))
                 .claim("email", auth.getName())
                 .claim("authorities", roles)
+                .claim("userId", userId)
+                .claim("motelIds", motelIds != null ? motelIds : new HashSet<>())
                 .signWith(key)
                 .compact();
     }
@@ -34,6 +36,37 @@ public class JwtProvider {
         jwt = jwt.substring(7);
         Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
         return String.valueOf(claims.get("email"));
+    }
+
+    public Long getUserIdFromJwtToken(String jwt) {
+        jwt = jwt.substring(7);
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
+        Object userId = claims.get("userId");
+        if (userId instanceof Number) {
+            return ((Number) userId).longValue();
+        }
+        return null;
+    }
+
+    public String getRoleFromJwtToken(String jwt) {
+        jwt = jwt.substring(7);
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
+        return String.valueOf(claims.get("authorities"));
+    }
+
+    public Set<Long> getMotelIdsFromJwtToken(String jwt) {
+        jwt = jwt.substring(7);
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
+        Object motelIds = claims.get("motelIds");
+        Set<Long> result = new HashSet<>();
+        if (motelIds instanceof java.util.List) {
+            for (Object id : (java.util.List<?>) motelIds) {
+                if (id instanceof Number) {
+                    result.add(((Number) id).longValue());
+                }
+            }
+        }
+        return result;
     }
 
     private String populateAuthorities(Collection<? extends GrantedAuthority> authorities) {
