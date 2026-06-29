@@ -46,13 +46,15 @@ public class DashboardServiceImpl implements DashboardService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         LocalDate today = LocalDate.now();
 
-        List<com.example.rental.model.Invoice> allInvoices = invoiceRepository.findAll();
-        BigDecimal tongDoanhThu = allInvoices.stream()
-                .filter(inv -> inv.getTrangThai() == InvoiceStatus.DA_THANH_TOAN)
-                .filter(inv -> inv.getKyHoaDon() != null
-                        && inv.getKyHoaDon().getMonth() == today.getMonth()
-                        && inv.getKyHoaDon().getYear() == today.getYear())
-                .map(inv -> inv.getTongTien() != null ? inv.getTongTien() : BigDecimal.ZERO)
+        // Tổng doanh thu tháng: tính từ Transaction thành công trong tháng hiện tại
+        LocalDateTime startOfMonth = today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endOfMonth = today.withDayOfMonth(today.lengthOfMonth()).atTime(23, 59, 59);
+        BigDecimal tongDoanhThu = transactionRepository.findAll().stream()
+                .filter(tx -> tx.getTrangThai() == com.example.rental.domain.PaymentStatus.THANH_CONG)
+                .filter(tx -> tx.getNgayThanhToan() != null)
+                .filter(tx -> !tx.getNgayThanhToan().isBefore(startOfMonth))
+                .filter(tx -> !tx.getNgayThanhToan().isAfter(endOfMonth))
+                .map(tx -> tx.getSoTien() != null ? tx.getSoTien() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         response.setTongDoanhThu(tongDoanhThu);
 

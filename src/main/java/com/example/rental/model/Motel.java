@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "nha_tro")
@@ -35,4 +37,7 @@ public class Motel {
     private LocalDateTime ngayTao;
 
     private LocalDateTime ngaySua;
+
+    @OneToMany(mappedBy = "nhaTro", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Service> danhSachDichVu = new ArrayList<>();
 }

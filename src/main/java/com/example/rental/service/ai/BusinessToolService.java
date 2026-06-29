@@ -317,7 +317,6 @@ public class BusinessToolService {
         for (User u : users) {
             Map<String, Object> e = new LinkedHashMap<>();
             e.put("hoTen", u.getHoTen());
-            e.put("username", u.getUsername());
             e.put("email", u.getEmail());
             e.put("sdt", u.getSdt());
             e.put("vaiTro", u.getVaiTro());

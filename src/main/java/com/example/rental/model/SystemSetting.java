@@ -22,4 +22,8 @@ public class SystemSetting {
     private String moTa;
 
     private LocalDateTime ngaySua;
+
+    @ManyToOne
+    @JoinColumn(name = "maNguoiTao")
+    private User nguoiTao;
 }

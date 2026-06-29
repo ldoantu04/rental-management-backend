@@ -13,7 +13,6 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     User findByEmail(String email);
     User findBySdt(String sdt);
-    User findByUsername(String username);
     List<User> findByCccd(String cccd);
     Optional<User> findById(Long id);
 
@@ -28,7 +27,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.assignedMotels WHERE " +
            "(:keyword IS NULL OR :keyword = '' " +
            "OR LOWER(u.hoTen) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-           "OR LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:vaiTro IS NULL OR u.vaiTro = :vaiTro) " +
            "AND (:trangThai IS NULL OR u.trangThai = :trangThai)")
@@ -37,9 +35,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("vaiTro") UserRole vaiTro,
             @Param("trangThai") UserStatus trangThai);
 
-    boolean existsByUsername(String username);
     boolean existsByEmail(String email);
-    boolean existsByUsernameAndIdNot(String username, Long id);
     boolean existsByEmailAndIdNot(String email, Long id);
     boolean existsBySdt(String sdt);
     boolean existsBySdtAndIdNot(String sdt, Long id);

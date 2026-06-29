@@ -13,6 +13,10 @@ public class OtpToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne
+    @JoinColumn(name = "maNguoiDung")
+    private User nguoiDung;
+
     private String email;
 
     private String maXacThuc;

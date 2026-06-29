@@ -22,10 +22,6 @@ public class ContractRequest {
     private Integer chuKyThanhToan;
     private Integer ngayThanhToan;
     private String dieuKhoan;
-<<<<<<< HEAD
-    private String dichVu;
-=======
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     private String fileHopDong;
     private ContractStatus trangThai;
     private String lyDoHuy;

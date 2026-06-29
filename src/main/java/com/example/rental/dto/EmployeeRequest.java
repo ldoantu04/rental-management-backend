@@ -9,8 +9,6 @@ import java.util.List;
 
 @Data
 public class EmployeeRequest {
-    private String username;
-    private String password;
     private String hoTen;
     private String email;
     private String sdt;

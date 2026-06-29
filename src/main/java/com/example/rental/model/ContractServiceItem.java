@@ -20,6 +20,11 @@ public class ContractServiceItem {
     @JsonIgnore
     private Contract hopDong;
 
+    @ManyToOne
+    @JoinColumn(name = "maDichVu")
+    @JsonIgnore
+    private Service dichVu;
+
     private String tenDichVu;
 
     private String kieuTinh;

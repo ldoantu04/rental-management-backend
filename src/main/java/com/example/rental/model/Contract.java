@@ -1,10 +1,7 @@
 package com.example.rental.model;
 
 import com.example.rental.domain.ContractStatus;
-<<<<<<< HEAD
-=======
 import com.example.rental.domain.WaterCalculationType;
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -60,13 +57,6 @@ public class Contract {
 
     private String dieuKhoan;
 
-<<<<<<< HEAD
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String dichVu;
-
-=======
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     private String fileHopDong;
 
     @Enumerated(EnumType.STRING)
@@ -85,11 +75,7 @@ public class Contract {
 
     private LocalDateTime ngaySua;
 
-<<<<<<< HEAD
-    @OneToMany(mappedBy = "hopDong", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-=======
     @OneToMany(mappedBy = "hopDong", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     private List<ContractServiceItem> danhSachDichVu = new ArrayList<>();
 
     @Transient

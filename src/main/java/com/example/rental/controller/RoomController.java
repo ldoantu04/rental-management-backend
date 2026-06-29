@@ -88,12 +88,6 @@ public class RoomController {
         return ResponseEntity.ok(rooms);
     }
 
-    @GetMapping("/available")
-    public ResponseEntity<List<Room>> getAvailableRooms() {
-        List<Room> rooms = roomService.findByTrangThai(RoomStatus.TRONG);
-        return ResponseEntity.ok(rooms);
-    }
-
     @GetMapping("/motel/{nhaTroId}")
     public ResponseEntity<List<Room>> getRoomsByMotelId(
             @PathVariable Long nhaTroId,

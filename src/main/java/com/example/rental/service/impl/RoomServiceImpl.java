@@ -175,9 +175,6 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public List<Room> findByTrangThai(RoomStatus trangThai) {
-<<<<<<< HEAD
-        return roomRepository.findByTrangThai(trangThai);
-=======
         return findByTrangThai(trangThai, null);
     }
 
@@ -186,7 +183,6 @@ public class RoomServiceImpl implements RoomService {
         return findAll(currentUser).stream()
                 .filter(r -> trangThai == null || r.getTrangThai() == trangThai)
                 .collect(Collectors.toList());
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     }
 
     @Override

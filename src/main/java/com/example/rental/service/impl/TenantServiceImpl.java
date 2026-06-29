@@ -33,23 +33,17 @@ public class TenantServiceImpl implements TenantService {
     private final TenantRepository tenantRepository;
     private final ContractRepository contractRepository;
     private final RoomRepository roomRepository;
-<<<<<<< HEAD
-=======
     private final UserService userService;
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 
     @Override
     @Transactional
     public Tenant createTenant(TenantRequest req) throws Exception {
-<<<<<<< HEAD
-=======
         return createTenant(req, null);
     }
 
     @Override
     @Transactional
     public Tenant createTenant(TenantRequest req, User nguoiTao) throws Exception {
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         if (req.getCccd() != null) {
             Tenant existTenant = tenantRepository.findByCccd(req.getCccd());
             if (existTenant != null) {
@@ -154,26 +148,6 @@ public class TenantServiceImpl implements TenantService {
     @Override
     @Transactional
     public void moveOutTenant(Long id) throws Exception {
-<<<<<<< HEAD
-        Tenant tenant = findById(id);
-
-        if (tenant.getTrangThai() == TenantStatus.DA_CHUYEN_DI) {
-            throw new Exception("Khach thue da o trang thai da chuyen di");
-        }
-
-        // Hủy các hợp đồng còn hạn của khách thuê
-        List<Contract> activeContracts = contractRepository
-                .findByKhachThueIdAndTrangThai(id, ContractStatus.DANG_HIEU_LUC);
-        for (Contract contract : activeContracts) {
-            contract.setTrangThai(ContractStatus.DA_HUY);
-            contract.setLyDoHuy("Khách trả phòng trước hạn");
-            contract.setNgayHuy(LocalDate.now());
-            contract.setNgaySua(LocalDateTime.now());
-            contractRepository.save(contract);
-        }
-
-        // Giải phóng phòng trọ
-=======
         moveOutTenant(id, null);
     }
 
@@ -196,7 +170,6 @@ public class TenantServiceImpl implements TenantService {
             contractRepository.save(contract);
         }
 
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         if (tenant.getPhongTro() != null) {
             Room room = tenant.getPhongTro();
             room.setTrangThai(RoomStatus.TRONG);
@@ -205,10 +178,6 @@ public class TenantServiceImpl implements TenantService {
             tenant.setPhongTro(null);
         }
 
-<<<<<<< HEAD
-        // Cập nhật trạng thái khách thuê
-=======
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         tenant.setTrangThai(TenantStatus.DA_CHUYEN_DI);
         tenant.setNgayBatDauThue(null);
         tenant.setTienCoc(null);
@@ -239,10 +208,6 @@ public class TenantServiceImpl implements TenantService {
     }
 
     @Override
-<<<<<<< HEAD
-    public List<Tenant> findByTrangThai(TenantStatus trangThai) {
-        return tenantRepository.findByTrangThaiOrderByNgayTaoDesc(trangThai);
-=======
     public List<Tenant> findAll(User currentUser) {
         if (currentUser == null || userService.isAdmin(currentUser)) {
             return findAll();
@@ -271,6 +236,5 @@ public class TenantServiceImpl implements TenantService {
         return findAll(currentUser).stream()
                 .filter(t -> trangThai == null || t.getTrangThai() == trangThai)
                 .collect(Collectors.toList());
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     }
 }

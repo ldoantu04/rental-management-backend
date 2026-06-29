@@ -15,10 +15,7 @@ import com.example.rental.repository.ContractServiceItemRepository;
 import com.example.rental.repository.RoomRepository;
 import com.example.rental.repository.TenantRepository;
 import com.example.rental.service.ContractService;
-<<<<<<< HEAD
-=======
 import com.example.rental.service.UserService;
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,23 +34,17 @@ public class ContractServiceImpl implements ContractService {
     private final TenantRepository tenantRepository;
     private final RoomRepository roomRepository;
     private final ContractServiceItemRepository contractServiceItemRepository;
-<<<<<<< HEAD
-=======
     private final UserService userService;
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 
     @Override
     @Transactional
     public Contract createContract(ContractRequest req) throws Exception {
-<<<<<<< HEAD
-=======
         return createContract(req, null);
     }
 
     @Override
     @Transactional
     public Contract createContract(ContractRequest req, User nguoiTao) throws Exception {
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         Tenant tenant = tenantRepository.findById(req.getMaKhachThue())
                 .orElseThrow(() -> new Exception("Khong tim thay khach thue voi id " + req.getMaKhachThue()));
 
@@ -84,14 +75,6 @@ public class ContractServiceImpl implements ContractService {
         contract.setNgayKetThuc(req.getNgayKetThuc());
         contract.setTienCoc(req.getTienCoc());
         contract.setGiaThue(req.getGiaThue());
-<<<<<<< HEAD
-        contract.setChuKyThanhToan(req.getChuKyThanhToan() != null ? req.getChuKyThanhToan() : 5);
-        contract.setNgayThanhToan(req.getNgayThanhToan());
-        contract.setDieuKhoan(req.getDieuKhoan());
-        contract.setDichVu(req.getDichVu());
-        contract.setFileHopDong(req.getFileHopDong());
-        contract.setTrangThai(ContractStatus.DANG_HIEU_LUC);
-=======
         contract.setGiaDien(req.getGiaDien());
         contract.setGiaNuoc(req.getGiaNuoc());
         contract.setKieuTinhNuoc(req.getKieuTinhNuoc());
@@ -101,7 +84,6 @@ public class ContractServiceImpl implements ContractService {
         contract.setFileHopDong(req.getFileHopDong());
         contract.setTrangThai(ContractStatus.DANG_HIEU_LUC);
         contract.setNguoiTao(nguoiTao);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         contract.setNgayTao(LocalDateTime.now());
         contract.setNgaySua(LocalDateTime.now());
 
@@ -159,8 +141,6 @@ public class ContractServiceImpl implements ContractService {
         if (req.getGiaThue() != null) {
             contract.setGiaThue(req.getGiaThue());
         }
-<<<<<<< HEAD
-=======
         if (req.getGiaDien() != null) {
             contract.setGiaDien(req.getGiaDien());
         }
@@ -170,7 +150,6 @@ public class ContractServiceImpl implements ContractService {
         if (req.getKieuTinhNuoc() != null) {
             contract.setKieuTinhNuoc(req.getKieuTinhNuoc());
         }
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         if (req.getChuKyThanhToan() != null) {
             contract.setChuKyThanhToan(req.getChuKyThanhToan());
         }
@@ -180,12 +159,6 @@ public class ContractServiceImpl implements ContractService {
         if (req.getDieuKhoan() != null) {
             contract.setDieuKhoan(req.getDieuKhoan());
         }
-<<<<<<< HEAD
-        if (req.getDichVu() != null) {
-            contract.setDichVu(req.getDichVu());
-        }
-=======
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         if (req.getFileHopDong() != null) {
             contract.setFileHopDong(req.getFileHopDong());
         }
@@ -212,25 +185,17 @@ public class ContractServiceImpl implements ContractService {
             syncTenantAndRoom(saved);
         }
         return saved;
-<<<<<<< HEAD
-=======
     }
 
     @Transactional
     public void cancelContract(Long id, String lyDoHuy) throws Exception {
         cancelContract(id, lyDoHuy, null);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     }
 
     @Override
     @Transactional
-<<<<<<< HEAD
-    public void cancelContract(Long id, String lyDoHuy) throws Exception {
-        Contract contract = findById(id);
-=======
     public void cancelContract(Long id, String lyDoHuy, User currentUser) throws Exception {
         Contract contract = findById(id, currentUser);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         contract.setTrangThai(ContractStatus.DA_HUY);
         if (lyDoHuy != null && !lyDoHuy.trim().isEmpty()) {
             contract.setLyDoHuy(lyDoHuy);
@@ -254,11 +219,7 @@ public class ContractServiceImpl implements ContractService {
             item.setTenDichVu(req.getTenDichVu());
             item.setKieuTinh(req.getKieuTinh());
             item.setDonGia(req.getDonGia() != null ? req.getDonGia() : java.math.BigDecimal.ZERO);
-<<<<<<< HEAD
-            item.setLaDichVuBoSung(Boolean.TRUE.equals(req.getLaDichVuBoSung()));
-=======
             item.setLaDichVuBoSung(true);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
             contractServiceItemRepository.save(item);
             contract.getDanhSachDichVu().add(item);
         }
@@ -314,10 +275,6 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public Contract findById(Long id) throws Exception {
-<<<<<<< HEAD
-        return contractRepository.findById(id)
-                .orElseThrow(() -> new Exception("Khong tim thay hop dong voi id " + id));
-=======
         return findById(id, null);
     }
 
@@ -335,14 +292,11 @@ public class ContractServiceImpl implements ContractService {
             }
         }
         return contract;
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     }
 
     @Override
     public List<Contract> findAll() {
         return contractRepository.findAllByOrderByNgayTaoDesc();
-<<<<<<< HEAD
-=======
     }
 
     @Override
@@ -373,6 +327,5 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public List<Contract> findByPhongTroIdAndTrangThai(Long phongTroId, ContractStatus trangThai) {
         return contractRepository.findByPhongTroIdAndTrangThai(phongTroId, trangThai);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     }
 }

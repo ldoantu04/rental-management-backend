@@ -41,16 +41,11 @@ public class TenantController {
     }
 
     @PutMapping("/{id}/move-out")
-<<<<<<< HEAD
-    public ResponseEntity<ApiResponse> moveOutTenant(@PathVariable Long id) throws Exception {
-        tenantService.moveOutTenant(id);
-=======
     public ResponseEntity<ApiResponse> moveOutTenant(
             @PathVariable Long id,
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findByJwt(jwt);
         tenantService.moveOutTenant(id, user);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         ApiResponse res = new ApiResponse();
         res.setMessage("Chuyen di thanh cong");
         return ResponseEntity.ok(res);
@@ -74,15 +69,10 @@ public class TenantController {
     }
 
     @GetMapping("/available")
-<<<<<<< HEAD
-    public ResponseEntity<List<Tenant>> getAvailableTenants() {
-        List<Tenant> tenants = tenantService.findByTrangThai(TenantStatus.CHUA_NHAN_PHONG);
-=======
     public ResponseEntity<List<Tenant>> getAvailableTenants(
             @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
         User user = jwt != null ? userService.findByJwt(jwt) : null;
         List<Tenant> tenants = tenantService.findByTrangThai(TenantStatus.CHUA_NHAN_PHONG, user);
->>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         return ResponseEntity.ok(tenants);
     }
 }

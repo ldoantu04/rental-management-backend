@@ -12,7 +12,6 @@ import java.util.Set;
 @Data
 public class EmployeeResponse {
     private Long id;
-    private String username;
     private String hoTen;
     private String email;
     private String sdt;

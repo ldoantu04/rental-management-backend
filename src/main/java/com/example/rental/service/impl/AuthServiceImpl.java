@@ -57,6 +57,7 @@ public class AuthServiceImpl implements AuthService {
         String otp = OtpUtil.generateOtp();
 
         OtpToken otpToken = new OtpToken();
+        otpToken.setNguoiDung(user);
         otpToken.setEmail(email);
         otpToken.setMaXacThuc(otp);
         otpToken.setDaSuDung(false);

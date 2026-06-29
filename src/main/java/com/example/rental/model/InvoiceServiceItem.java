@@ -20,6 +20,11 @@ public class InvoiceServiceItem {
     @JsonIgnore
     private Invoice hoaDon;
 
+    @ManyToOne
+    @JoinColumn(name = "maDichVu")
+    @JsonIgnore
+    private Service dichVu;
+
     private String tenDichVu;
 
     private String kieuTinh;

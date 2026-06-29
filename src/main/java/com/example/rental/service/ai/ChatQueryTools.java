@@ -339,7 +339,7 @@ public class ChatQueryTools {
 
     @Tool(description = "Tra cuu danh sach nhan vien. Chi danh cho quan ly. Co the loc theo tu khoa hoac vai tro.")
     public String getEmployeeOverview(
-            @ToolParam(description = "Tu khoa tra cuu (ho ten, email, username). Co the bo qua.", required = false) String keyword,
+            @ToolParam(description = "Tu khoa tra cuu (ho ten, email). Co the bo qua.", required = false) String keyword,
             @ToolParam(description = "Vai tro can loc: QUAN_LY hoac NHAN_VIEN. Bo qua se tra cuu nhan vien.", required = false) String vaiTro) {
         UserRole filterRole = UserRole.NHAN_VIEN;
         if (vaiTro != null && !vaiTro.isBlank()) {
@@ -355,7 +355,6 @@ public class ChatQueryTools {
         int idx = 1;
         for (User emp : employees) {
             sb.append(idx++).append(". ").append(safe(emp.getHoTen()))
-                    .append(" - Username: ").append(safe(emp.getUsername()))
                     .append(" - Email: ").append(safe(emp.getEmail()))
                     .append(" - SDT: ").append(safe(emp.getSdt()))
                     .append(" - Vai tro: ").append(emp.getVaiTro())
@@ -373,7 +372,7 @@ public class ChatQueryTools {
 
     @Tool(description = "Tra cuu danh sach tat ca tai khoan (nhan vien va quan ly). Chi danh cho quan ly.")
     public String getUserOverview(
-            @ToolParam(description = "Tu khoa tra cuu (ho ten, email, username). Co the bo qua.", required = false) String keyword,
+            @ToolParam(description = "Tu khoa tra cuu (ho ten, email). Co the bo qua.", required = false) String keyword,
             @ToolParam(description = "Vai tro can loc: QUAN_LY hoac NHAN_VIEN. Bo qua se tra cuu tat ca.", required = false) String vaiTro) {
         UserRole filterRole = null;
         if (vaiTro != null && !vaiTro.isBlank()) {
@@ -389,7 +388,6 @@ public class ChatQueryTools {
         int idx = 1;
         for (User u : users) {
             sb.append(idx++).append(". ").append(safe(u.getHoTen()))
-                    .append(" - Username: ").append(safe(u.getUsername()))
                     .append(" - Email: ").append(safe(u.getEmail()))
                     .append(" - SDT: ").append(safe(u.getSdt()))
                     .append(" - Vai tro: ").append(u.getVaiTro())

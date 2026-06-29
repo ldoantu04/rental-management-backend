@@ -13,6 +13,10 @@ public class Service {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne
+    @JoinColumn(name = "maNhaTro")
+    private Motel nhaTro;
+
     private String tenDichVu;
 
     private BigDecimal giaMacDinh;

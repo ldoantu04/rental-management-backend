@@ -31,6 +31,10 @@ public class EmailTemplate {
     @Column(nullable = false)
     private Boolean batBuoc = true;
 
+    @ManyToOne
+    @JoinColumn(name = "maNguoiTao")
+    private User nguoiTao;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime ngayTao;

@@ -107,7 +107,6 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = new User();
-        user.setUsername(req.getEmail().trim());
         user.setHoTen(req.getHoTen());
         user.setEmail(req.getEmail().trim());
         user.setSdt(req.getSdt());
@@ -142,12 +141,6 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new Exception("Khong tim thay nhan vien voi id " + id));
 
-        if (req.getUsername() != null && !req.getUsername().trim().isEmpty()) {
-            if (userRepository.existsByUsernameAndIdNot(req.getUsername().trim(), id)) {
-                throw new Exception("Username da ton tai trong he thong");
-            }
-            user.setUsername(req.getUsername().trim());
-        }
 
         if (req.getEmail() != null && !req.getEmail().trim().isEmpty()) {
             if (userRepository.existsByEmailAndIdNot(req.getEmail().trim(), id)) {
@@ -163,9 +156,6 @@ public class UserServiceImpl implements UserService {
             user.setSdt(req.getSdt().trim());
         }
 
-        if (req.getPassword() != null && !req.getPassword().trim().isEmpty()) {
-            user.setPassword(req.getPassword());
-        }
         if (req.getHoTen() != null) {
             user.setHoTen(req.getHoTen());
         }
@@ -310,7 +300,6 @@ public class UserServiceImpl implements UserService {
         if (user == null) return null;
         EmployeeResponse r = new EmployeeResponse();
         r.setId(user.getId());
-        r.setUsername(user.getUsername());
         r.setHoTen(user.getHoTen());
         r.setEmail(user.getEmail());
         r.setSdt(user.getSdt());
