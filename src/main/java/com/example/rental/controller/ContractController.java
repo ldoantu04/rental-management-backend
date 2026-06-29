@@ -1,9 +1,15 @@
 package com.example.rental.controller;
 
+import com.example.rental.domain.ContractStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.dto.ContractRequest;
 import com.example.rental.model.Contract;
+import com.example.rental.model.User;
 import com.example.rental.service.ContractService;
+<<<<<<< HEAD
+=======
+import com.example.rental.service.UserService;
+>>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 import com.example.rental.service.utils.ContractPdfService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -21,47 +27,97 @@ public class ContractController {
 
     private final ContractService contractService;
     private final ContractPdfService contractPdfService;
+<<<<<<< HEAD
+=======
+    private final UserService userService;
+>>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 
     @PostMapping
-    public ResponseEntity<Contract> createContract(@RequestBody ContractRequest req) throws Exception {
-        Contract contract = contractService.createContract(req);
+    public ResponseEntity<Contract> createContract(
+            @RequestBody ContractRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Contract contract = contractService.createContract(req, user);
         return ResponseEntity.ok(contract);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Contract> updateContract(
             @PathVariable Long id,
-            @RequestBody ContractRequest req) throws Exception {
-        Contract contract = contractService.updateContract(id, req);
+            @RequestBody ContractRequest req,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findByJwt(jwt);
+        Contract contract = contractService.updateContract(id, req, user);
         return ResponseEntity.ok(contract);
     }
 
     @PutMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse> cancelContract(
             @PathVariable Long id,
+<<<<<<< HEAD
             @RequestBody(required = false) Map<String, String> body) throws Exception {
         String lyDoHuy = body != null ? body.get("lyDoHuy") : null;
         contractService.cancelContract(id, lyDoHuy);
+=======
+            @RequestBody(required = false) Map<String, String> body,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        String lyDoHuy = body != null ? body.get("lyDoHuy") : null;
+        User user = userService.findByJwt(jwt);
+        contractService.cancelContract(id, lyDoHuy, user);
+>>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         ApiResponse res = new ApiResponse();
         res.setMessage("Huy hop dong thanh cong");
         return ResponseEntity.ok(res);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Contract> getContractById(@PathVariable Long id) throws Exception {
-        Contract contract = contractService.findById(id);
+    public ResponseEntity<Contract> getContractById(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        Contract contract = contractService.findById(id, user);
         return ResponseEntity.ok(contract);
     }
 
     @GetMapping
-    public ResponseEntity<List<Contract>> getAllContracts() {
-        List<Contract> contracts = contractService.findAll();
+    public ResponseEntity<List<Contract>> getAllContracts(
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Contract> contracts = contractService.findAll(user);
         return ResponseEntity.ok(contracts);
     }
 
+<<<<<<< HEAD
     @GetMapping("/{id}/pdf")
     public ResponseEntity<byte[]> downloadContractPdf(@PathVariable Long id) throws Exception {
         Contract contract = contractService.findById(id);
+=======
+    @GetMapping("/active")
+    public ResponseEntity<List<Contract>> getActiveContracts(
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Contract> contracts = contractService.findByTrangThai(ContractStatus.DANG_HIEU_LUC, user);
+        return ResponseEntity.ok(contracts);
+    }
+
+    @GetMapping("/by-room/{roomId}/active")
+    public ResponseEntity<Contract> getActiveContractByRoom(
+            @PathVariable Long roomId,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        List<Contract> contracts = contractService.findByPhongTroIdAndTrangThai(roomId, ContractStatus.DANG_HIEU_LUC);
+        if (contracts == null || contracts.isEmpty()) {
+            throw new Exception("Phong tro chua co hop dong hieu luc");
+        }
+        return ResponseEntity.ok(contracts.get(0));
+    }
+
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadContractPdf(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        Contract contract = contractService.findById(id, user);
+>>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
         byte[] pdf = contractPdfService.generate(contract);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);

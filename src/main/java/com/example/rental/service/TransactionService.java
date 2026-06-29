@@ -3,6 +3,7 @@ package com.example.rental.service;
 import com.example.rental.domain.PaymentMethod;
 import com.example.rental.domain.PaymentStatus;
 import com.example.rental.model.Transaction;
+import com.example.rental.model.User;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,8 +12,19 @@ public interface TransactionService {
     Transaction findById(Long id) throws Exception;
     Transaction findByMaGiaoDich(String maGiaoDich) throws Exception;
     List<Transaction> findAll();
+    List<Transaction> findAll(User currentUser);
     List<Transaction> findByInvoiceId(Long hoaDonId);
-    List<Transaction> search(String maGiaoDich, Long hoaDonId, PaymentStatus trangThai,
-                             PaymentMethod hinhThucTT, LocalDateTime tuNgay, LocalDateTime denNgay);
+    List<Transaction> search(String keyword, String maHoaDon, String tenKhachThue,
+                             PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                             LocalDateTime tuNgay, LocalDateTime denNgay);
+    List<Transaction> search(String keyword, String maHoaDon, String tenKhachThue,
+                             PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                             LocalDateTime tuNgay, LocalDateTime denNgay, User currentUser);
+    List<Transaction> filterForExport(String keyword, String maHoaDon, String tenKhachThue,
+                                      PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                                      LocalDateTime tuNgay, LocalDateTime denNgay);
+    List<Transaction> filterForExport(String keyword, String maHoaDon, String tenKhachThue,
+                                      PaymentStatus trangThai, PaymentMethod hinhThucTT,
+                                      LocalDateTime tuNgay, LocalDateTime denNgay, User currentUser);
     void deleteTransaction(Long id) throws Exception;
 }

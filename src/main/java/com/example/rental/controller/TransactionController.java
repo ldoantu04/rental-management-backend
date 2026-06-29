@@ -4,9 +4,14 @@ import com.example.rental.domain.PaymentMethod;
 import com.example.rental.domain.PaymentStatus;
 import com.example.rental.dto.ApiResponse;
 import com.example.rental.model.Transaction;
+import com.example.rental.model.User;
 import com.example.rental.service.TransactionService;
+import com.example.rental.service.UserService;
+import com.example.rental.service.utils.TransactionExcelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +24,16 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final TransactionExcelService transactionExcelService;
+    private final UserService userService;
+
+    @GetMapping
+    public ResponseEntity<List<Transaction>> getAllTransactions(
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Transaction> transactions = transactionService.findAll(user);
+        return ResponseEntity.ok(transactions);
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<Transaction> getTransactionById(@PathVariable Long id) throws Exception {
@@ -32,12 +47,6 @@ public class TransactionController {
         return ResponseEntity.ok(transaction);
     }
 
-    @GetMapping
-    public ResponseEntity<List<Transaction>> getAllTransactions() {
-        List<Transaction> transactions = transactionService.findAll();
-        return ResponseEntity.ok(transactions);
-    }
-
     @GetMapping("/invoice/{hoaDonId}")
     public ResponseEntity<List<Transaction>> getTransactionsByInvoice(@PathVariable Long hoaDonId) {
         List<Transaction> transactions = transactionService.findByInvoiceId(hoaDonId);
@@ -46,15 +55,39 @@ public class TransactionController {
 
     @GetMapping("/search")
     public ResponseEntity<List<Transaction>> searchTransactions(
-            @RequestParam(required = false) String maGiaoDich,
-            @RequestParam(required = false) Long hoaDonId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String maHoaDon,
+            @RequestParam(required = false) String tenKhachThue,
             @RequestParam(required = false) PaymentStatus trangThai,
             @RequestParam(required = false) PaymentMethod hinhThucTT,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime tuNgay,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
         List<Transaction> transactions = transactionService.search(
-                maGiaoDich, hoaDonId, trangThai, hinhThucTT, tuNgay, denNgay);
+                keyword, maHoaDon, tenKhachThue, trangThai, hinhThucTT, tuNgay, denNgay, user);
         return ResponseEntity.ok(transactions);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportTransactions(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String maHoaDon,
+            @RequestParam(required = false) String tenKhachThue,
+            @RequestParam(required = false) PaymentStatus trangThai,
+            @RequestParam(required = false) PaymentMethod hinhThucTT,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime tuNgay,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime denNgay,
+            @RequestHeader(value = "Authorization", required = false) String jwt) throws Exception {
+        User user = jwt != null ? userService.findByJwt(jwt) : null;
+        List<Transaction> transactions = transactionService.filterForExport(
+                keyword, maHoaDon, tenKhachThue, trangThai, hinhThucTT, tuNgay, denNgay, user);
+        byte[] data = transactionExcelService.exportTransactions(transactions);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", "danh-sach-giao-dich.xlsx");
+        return ResponseEntity.ok().headers(headers).body(data);
     }
 
     @DeleteMapping("/{id}")

@@ -10,7 +10,10 @@ import java.util.List;
 public interface MotelRepository extends JpaRepository<Motel, Long> {
     Motel findByTenTro(String tenTro);
     List<Motel> findByNguoiTaoId(Long nguoiTaoId);
-    List<Motel> findAllByOrderByNguoiTaoDesc();
+    List<Motel> findByNguoiTaoIdOrderByIdDesc(Long nguoiTaoId);
+
+    @Query("SELECT m FROM Motel m LEFT JOIN FETCH m.nguoiTao ORDER BY m.id DESC")
+    List<Motel> findAllOrderByIdDesc();
 
     @Query("""
     SELECT m FROM Motel m

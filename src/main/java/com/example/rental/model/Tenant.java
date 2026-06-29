@@ -2,6 +2,10 @@ package com.example.rental.model;
 
 import com.example.rental.domain.Gender;
 import com.example.rental.domain.TenantStatus;
+<<<<<<< HEAD
+=======
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+>>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -47,6 +51,10 @@ public class Tenant {
 
     @ManyToOne
     @JoinColumn(name = "maPhongTro")
+<<<<<<< HEAD
+=======
+    @JsonIgnoreProperties({"khachThue", "nhaTro", "danhSachNguoiOCung"})
+>>>>>>> 033bebc3c7b21b80e66cb91c0a8b6db61c375b4b
     private Room phongTro;
 
     private LocalDate ngayBatDauThue;

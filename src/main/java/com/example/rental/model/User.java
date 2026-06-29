@@ -7,6 +7,8 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name= "nguoi_dung")
@@ -15,6 +17,11 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(unique = true, nullable = false)
+    private String username;
+
+    private String password;
 
     private String hoTen;
 
@@ -27,10 +34,22 @@ public class User {
 
     private String diaChi;
 
+    private String cccd;
+
+    private LocalDate ngayVaoLam;
+
     @Enumerated(EnumType.STRING)
     private UserRole vaiTro;
 
-    private String phamViQuanLy;
+    @ManyToMany
+    @JoinTable(
+            name = "nhan_vien_nha_tro",
+            joinColumns = @JoinColumn(name = "maNhanVien"),
+            inverseJoinColumns = @JoinColumn(name = "maNhaTro")
+    )
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Set<Motel> assignedMotels = new HashSet<>();
 
     @Enumerated(EnumType.STRING)
     private UserStatus trangThai;
@@ -40,5 +59,4 @@ public class User {
     private LocalDateTime ngayTao;
 
     private LocalDateTime ngaySua;
-
 }

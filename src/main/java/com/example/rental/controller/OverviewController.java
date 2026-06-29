@@ -1,7 +1,7 @@
 package com.example.rental.controller;
 
 import com.example.rental.dto.OverviewResponse;
-import com.example.rental.service.OverviewService;
+import com.example.rental.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class OverviewController {
 
-    private final OverviewService overviewService;
+    private final DashboardService dashboardService;
 
     @GetMapping
     public ResponseEntity<OverviewResponse> getOverview() {
-        OverviewResponse response = overviewService.getOverview();
+        OverviewResponse response = dashboardService.getOverview();
         return ResponseEntity.ok(response);
     }
 }

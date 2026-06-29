@@ -75,18 +75,15 @@ public class AuthServiceImpl implements AuthService {
         String email = req.getEmail();
         String otp = req.getOtp();
 
-        // Kiem tra user ton tai
-        User user = userRepository.findByEmail(email);
+        User user = userRepository.findByEmailWithMotels(email);
         if (user == null) {
             throw new BadCredentialsException("Email khong ton tai trong he thong");
         }
 
-        // Kiem tra trang thai tai khoan
         if (user.getTrangThai() == UserStatus.KHOA) {
             throw new Exception("Tai khoan da bi khoa");
         }
 
-        // Xac thuc OTP
         OtpToken otpToken = otpTokenRepository.findByEmailAndMaXacThuc(email, otp);
         if (otpToken == null) {
             throw new Exception("Ma OTP khong hop le");
@@ -101,20 +98,29 @@ public class AuthServiceImpl implements AuthService {
         otpToken.setDaSuDung(true);
         otpTokenRepository.save(otpToken);
 
-        // Tao authentication
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority(user.getVaiTro().toString()));
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(email, null, authorities);
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Tao JWT token
-        String token = jwtProvider.generateToken(authentication);
+        java.util.Set<Long> motelIds;
+        if (user.getVaiTro() == com.example.rental.domain.UserRole.QUAN_LY) {
+            motelIds = null;
+        } else {
+            motelIds = user.getAssignedMotels().stream()
+                    .map(m -> m.getId())
+                    .collect(java.util.stream.Collectors.toSet());
+        }
+
+        String token = jwtProvider.generateToken(authentication, user.getId(), motelIds);
 
         AuthResponse authResponse = new AuthResponse();
         authResponse.setJwt(token);
         authResponse.setMessage("Dang nhap thanh cong");
         authResponse.setRole(user.getVaiTro());
+        authResponse.setUserId(user.getId());
+        authResponse.setHoTen(user.getHoTen());
 
         return authResponse;
     }

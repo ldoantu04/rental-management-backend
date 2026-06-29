@@ -1,12 +1,15 @@
 package com.example.rental.model;
 import com.example.rental.domain.InvoiceStatus;
 import com.example.rental.domain.PaymentMethod;
+import com.example.rental.domain.WaterCalculationType;
 import jakarta.persistence.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "hoa_don")
@@ -37,9 +40,14 @@ public class Invoice {
 
     private BigDecimal giaNuoc;
 
+    @Enumerated(EnumType.STRING)
+    private WaterCalculationType kieuTinhNuoc = WaterCalculationType.CHI_SO;
+
     private BigDecimal tienPhong;
 
     private BigDecimal tongTien;
+
+    private BigDecimal phiPhat;
 
     private LocalDate hanThanhToan;
 
@@ -55,4 +63,7 @@ public class Invoice {
     private LocalDateTime ngayTao;
 
     private LocalDateTime ngaySua;
+
+    @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<InvoiceServiceItem> danhSachDichVu = new ArrayList<>();
 }
